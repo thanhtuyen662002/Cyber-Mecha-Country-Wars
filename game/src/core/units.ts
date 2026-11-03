@@ -1,17 +1,17 @@
-// The 13 launch units (PLAN.md "Đã chốt"), their gift tiers and the counter system.
+// The full 24-unit roster from PLAN.md (7 gift tiers) (PLAN.md "Đã chốt"), their gift tiers and the counter system.
 export type UnitKey =
   | 'infantry' | 'sniper' | 'at' // tier 0: chat / follow / share
-  | 'drone' | 'flamer' // tier 1
-  | 'tank' | 'aa' | 'spider' // tier 2
-  | 'heli' // tier 3
-  | 'robot' | 'bomber' // tier 4
-  | 'titan' // tier 5
-  | 'strike'; // tier 6 (strategic bombing run, an event rather than a unit)
+  | 'drone' | 'flamer' | 'jeep' // tier 1
+  | 'tank' | 'aa' | 'spider' | 'repair' // tier 2
+  | 'heli' | 'mbt' | 'mlrs' | 'emp' // tier 3
+  | 'robot' | 'bomber' | 'hover' | 'mobile' // tier 4
+  | 'titan' | 'carrier' | 'stormfort' // tier 5
+  | 'strike' | 'orbital' | 'dragon'; // tier 6 (strike + orbital are events rather than units)
 
 /** What a unit is, for counters. */
 export type UnitClass = 'inf' | 'vehicle' | 'mech' | 'air';
 /** What a weapon is good against. */
-export type Weapon = 'rifle' | 'sniper' | 'atRocket' | 'flame' | 'kamikaze' | 'shell' | 'flak' | 'laser' | 'rocket' | 'robot' | 'bombs' | 'titan';
+export type Weapon = 'rifle' | 'sniper' | 'atRocket' | 'flame' | 'kamikaze' | 'shell' | 'flak' | 'laser' | 'rocket' | 'robot' | 'bombs' | 'titan' | 'mg' | 'repair' | 'artillery' | 'emp' | 'mobile' | 'carrier' | 'storm' | 'orbital' | 'dragon';
 
 export interface UnitDef {
   key: UnitKey;
@@ -47,10 +47,31 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   robot: u({ key: 'robot', name: 'War Robot', tier: 4, cls: 'mech', weapon: 'robot', hp: 1600, speed: 30, range: 320, dmg: 42, fireInterval: 0.55, radius: 46, mass: 30, cmds: ['!robot'], value: 400 }),
   bomber: u({ key: 'bomber', name: 'Strike Bomber', tier: 4, cls: 'air', weapon: 'bombs', hp: 700, speed: 210, range: 60, dmg: 90, fireInterval: 0.12, radius: 50, mass: 20, cmds: ['!bomber', '!bomb'], value: 400 }),
   titan: u({ key: 'titan', name: 'Mecha Titan', tier: 5, cls: 'mech', weapon: 'titan', hp: 5200, speed: 24, range: 420, dmg: 26, fireInterval: 0.08, radius: 80, mass: 200, cmds: ['!titan'], value: 2000 }),
+  jeep: u({ key: 'jeep', name: 'Gun Jeep', tier: 1, cls: 'vehicle', weapon: 'mg', hp: 120, speed: 95, range: 200, dmg: 5, fireInterval: 0.13, radius: 20, mass: 4, cmds: ['!jeep'], value: 12 }),
+  repair: u({ key: 'repair', name: 'Repair Drone', tier: 2, cls: 'air', weapon: 'repair', hp: 160, speed: 90, range: 170, dmg: 26, fireInterval: 0.1, radius: 20, mass: 2, cmds: ['!repair', '!heal'], value: 35 }),
+  mbt: u({ key: 'mbt', name: 'Battle Tank', tier: 3, cls: 'vehicle', weapon: 'shell', hp: 820, speed: 32, range: 300, dmg: 95, fireInterval: 1.9, radius: 34, mass: 14, cmds: ['!mbt', '!bigtank'], value: 120 }),
+  mlrs: u({ key: 'mlrs', name: 'Rocket Artillery', tier: 3, cls: 'vehicle', weapon: 'artillery', hp: 380, speed: 34, range: 600, dmg: 55, fireInterval: 5.5, radius: 30, mass: 9, cmds: ['!mlrs', '!arty'], value: 120 }),
+  emp: u({ key: 'emp', name: 'EMP Truck', tier: 3, cls: 'vehicle', weapon: 'emp', hp: 460, speed: 44, range: 230, dmg: 70, fireInterval: 2.6, radius: 28, mass: 8, cmds: ['!emp'], value: 120 }),
+  hover: u({ key: 'hover', name: 'Hover Assault', tier: 4, cls: 'vehicle', weapon: 'rocket', hp: 1300, speed: 78, range: 320, dmg: 40, fireInterval: 0.7, radius: 46, mass: 18, cmds: ['!hover'], value: 400 }),
+  mobile: u({ key: 'mobile', name: 'Mobile Fortress', tier: 4, cls: 'vehicle', weapon: 'mobile', hp: 3000, speed: 16, range: 340, dmg: 60, fireInterval: 0.6, radius: 70, mass: 80, cmds: ['!fortress', '!mobile'], value: 400 }),
+  carrier: u({ key: 'carrier', name: 'Drone Carrier', tier: 5, cls: 'air', weapon: 'carrier', hp: 4200, speed: 34, range: 380, dmg: 14, fireInterval: 0.2, radius: 96, mass: 150, cmds: ['!carrier'], value: 2000 }),
+  stormfort: u({ key: 'stormfort', name: 'Storm Fortress', tier: 5, cls: 'mech', weapon: 'storm', hp: 4800, speed: 18, range: 440, dmg: 240, fireInterval: 1.6, radius: 66, mass: 180, cmds: ['!storm', '!stormfort'], value: 2000 }),
   strike: u({ key: 'strike', name: 'Strategic Bombing', tier: 6, cls: 'air', weapon: 'bombs', hp: 1, speed: 0, range: 0, dmg: 0, fireInterval: 1, radius: 1, mass: 1, cmds: ['!nuke', '!strike'], value: 0 }),
+  orbital: u({ key: 'orbital', name: 'Orbital Cannon', tier: 6, cls: 'air', weapon: 'orbital', hp: 1, speed: 0, range: 0, dmg: 0, fireInterval: 1, radius: 1, mass: 1, cmds: ['!orbital', '!laser'], value: 0 }),
+  dragon: u({ key: 'dragon', name: 'Mecha Dragon', tier: 6, cls: 'air', weapon: 'dragon', hp: 9000, speed: 80, range: 230, dmg: 9, fireInterval: 0.06, radius: 70, mass: 300, cmds: ['!dragon'], value: 5000 }),
 };
+/** Events: no unit stays on the field, they are scripted strikes. */
+export const EVENT_UNITS: UnitKey[] = ['strike', 'orbital'];
 export const UNIT_KEYS = Object.keys(UNITS) as UnitKey[];
-export const TIER_UNITS: UnitKey[][] = [['infantry', 'sniper', 'at'], ['drone', 'flamer'], ['tank', 'aa', 'spider'], ['heli'], ['robot', 'bomber'], ['titan'], ['strike']];
+export const TIER_UNITS: UnitKey[][] = [
+  ['infantry', 'sniper', 'at'],
+  ['drone', 'flamer', 'jeep'],
+  ['tank', 'aa', 'spider', 'repair'],
+  ['heli', 'mbt', 'mlrs', 'emp'],
+  ['robot', 'bomber', 'hover', 'mobile'],
+  ['titan', 'carrier', 'stormfort'],
+  ['strike', 'orbital', 'dragon'],
+];
 
 /** Damage multiplier: weapon -> target class. 0 = cannot target. Fortress uses `fort`. */
 export const COUNTER: Record<Weapon, Record<UnitClass | 'fort', number>> = {
@@ -66,6 +87,15 @@ export const COUNTER: Record<Weapon, Record<UnitClass | 'fort', number>> = {
   robot: { inf: 1.2, vehicle: 1.2, mech: 1.1, air: 0.7, fort: 1.2 },
   bombs: { inf: 1.5, vehicle: 1.5, mech: 1.1, air: 0, fort: 1.3 },
   titan: { inf: 1.2, vehicle: 1.2, mech: 1.2, air: 1, fort: 1.4 },
+  mg: { inf: 1.8, vehicle: 0.4, mech: 0.3, air: 0.9, fort: 0.3 },
+  repair: { inf: 0, vehicle: 0, mech: 0, air: 0, fort: 0 },
+  artillery: { inf: 1.6, vehicle: 1.4, mech: 1, air: 0, fort: 1.6 },
+  emp: { inf: 0.3, vehicle: 0.9, mech: 2.6, air: 2.4, fort: 0.6 },
+  mobile: { inf: 1.4, vehicle: 1.3, mech: 1.1, air: 0.8, fort: 1.4 },
+  carrier: { inf: 0.8, vehicle: 0.4, mech: 0.4, air: 2.5, fort: 0.3 },
+  storm: { inf: 1, vehicle: 1.3, mech: 2, air: 1.5, fort: 1 },
+  orbital: { inf: 2, vehicle: 2, mech: 2, air: 1, fort: 2 },
+  dragon: { inf: 2.4, vehicle: 1.3, mech: 1.1, air: 1.2, fort: 1.1 },
 };
 
 /** Chat command -> unit key. */

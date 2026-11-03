@@ -289,6 +289,262 @@ export function buildVisual(key: UnitKey, color: number, art: UnitArt, fx: FxTex
         shadow.position.set(root.x + 12, root.y + 16);
       });
     }
+    case 'jeep': {
+      const body = add(art.jeepBody);
+      const gun = add(art.jeepGun);
+      const sh = shadowOf(art.jeepBody.base, 0.38);
+      shadow.addChild(sh);
+      return done((st) => {
+        body.c.rotation = st.angle;
+        sh.rotation = st.angle;
+        gun.c.rotation = st.aim;
+        gun.c.position.set(Math.cos(st.angle) * -4, Math.sin(st.angle) * -4);
+        body.c.y = Math.sin(st.dist * 0.5) * 0.7 * st.moving;
+        shadow.position.set(root.x + 4, root.y + 6);
+      });
+    }
+    case 'repair': {
+      const body = add(art.repairDrone);
+      const rotors = [-1, 1].map((s) => {
+        const r = new Sprite(art.droneRotor.base);
+        r.anchor.set(0.5);
+        r.position.set(-4, s * 15);
+        body.c.addChild(r);
+        return r;
+      });
+      const sh = shadowOf(art.repairDrone.base, 0.28);
+      sh.scale.set(0.7);
+      shadow.addChild(sh);
+      return done((st) => {
+        body.c.rotation = st.angle;
+        sh.rotation = st.angle;
+        rotors.forEach((r, i) => (r.rotation += i ? 0.8 : -0.8));
+        body.glow.alpha = 0.75 + Math.sin(st.t * 6) * 0.25;
+        shadow.position.set(root.x + 18, root.y + 26);
+        root.y += Math.sin(st.t * 3) * 1.5;
+      });
+    }
+    case 'mbt': {
+      const hullC = new Container();
+      root.addChild(hullC);
+      const tr = new Sprite(art.mbtTracks.base);
+      tr.anchor.set(0.5);
+      hullC.addChild(tr);
+      add(art.mbtHull, hullC);
+      const turret = add(art.mbtTurret);
+      const sh = shadowOf(art.mbtHull.base, 0.42);
+      shadow.addChild(sh);
+      let recoil = 0;
+      return done((st) => {
+        hullC.rotation = st.angle;
+        sh.rotation = st.angle;
+        tr.x = ((st.dist * 0.5) % 7) * 0.12 * st.moving;
+        turret.c.rotation = st.aim;
+        if (st.flash > 0.5) recoil = 7;
+        recoil *= 0.82;
+        turret.c.position.set(Math.cos(st.angle) * -3 - Math.cos(st.aim) * recoil, Math.sin(st.angle) * -3 - Math.sin(st.aim) * recoil);
+        shadow.position.set(root.x + 6, root.y + 8);
+      });
+    }
+    case 'mlrs': {
+      const hull = add(art.mlrsHull);
+      const pod = add(art.mlrsPod);
+      const sh = shadowOf(art.mlrsHull.base, 0.4);
+      shadow.addChild(sh);
+      return done((st) => {
+        hull.c.rotation = st.angle;
+        sh.rotation = st.angle;
+        pod.c.rotation = st.aim;
+        pod.c.position.set(Math.cos(st.angle) * -10, Math.sin(st.angle) * -10);
+        pod.glow.alpha = 0.5 + st.flash * 0.8;
+        shadow.position.set(root.x + 5, root.y + 7);
+      });
+    }
+    case 'emp': {
+      const hull = add(art.empHull);
+      const coil = add(art.empCoil);
+      const sh = shadowOf(art.empHull.base, 0.4);
+      shadow.addChild(sh);
+      const halo = aura(90, 0.25);
+      return done((st) => {
+        hull.c.rotation = st.angle;
+        sh.rotation = st.angle;
+        coil.c.rotation = st.t * 2;
+        coil.c.position.set(Math.cos(st.angle) * -6, Math.sin(st.angle) * -6);
+        coil.glow.alpha = 0.6 + Math.sin(st.t * 9) * 0.25 + st.flash;
+        halo.alpha = 0.15 + st.flash * 0.5;
+        shadow.position.set(root.x + 5, root.y + 7);
+      });
+    }
+    case 'hover': {
+      const body = add(art.hoverBody);
+      const fans = [-1, 1].map((s) => {
+        const r = new Sprite(art.droneRotor.base);
+        r.anchor.set(0.5);
+        r.scale.set(1.25);
+        r.position.set(-30, s * 13);
+        body.c.addChild(r);
+        return r;
+      });
+      const sh = shadowOf(art.hoverBody.base, 0.35);
+      shadow.addChild(sh);
+      return done((st) => {
+        body.c.rotation = st.angle;
+        sh.rotation = st.angle;
+        fans.forEach((f, i) => (f.rotation += i ? 0.7 : -0.7));
+        const yaw = Math.sin(st.t * 1.7) * 0.03;
+        body.c.rotation += yaw;
+        shadow.position.set(root.x + 8, root.y + 12);
+        root.y += Math.sin(st.t * 2.4) * 1.2;
+      });
+    }
+    case 'mobile': {
+      aura(220, 0.22);
+      const hullC = new Container();
+      root.addChild(hullC);
+      const tr = new Sprite(art.mobileTracks.base);
+      tr.anchor.set(0.5);
+      hullC.addChild(tr);
+      add(art.mobileHull, hullC);
+      const mounts: [number, number, PartTex, number][] = [[38, 0, art.mbtTurret, 0.75], [-6, -16, art.tankTurret, 0.72], [-6, 16, art.tankTurret, 0.72]];
+      const turrets = mounts.map(([x, y, pt, sc]) => {
+        const t = add(pt);
+        t.c.scale.set(sc);
+        return { t, x, y };
+      });
+      const sh = shadowOf(art.mobileHull.base, 0.45);
+      shadow.addChild(sh);
+      return done((st) => {
+        hullC.rotation = st.angle;
+        sh.rotation = st.angle;
+        const c = Math.cos(st.angle), s = Math.sin(st.angle);
+        turrets.forEach(({ t, x, y }, i) => {
+          t.c.position.set(c * x - s * y, s * x + c * y);
+          t.c.rotation = st.aim + (i === 0 ? 0 : Math.sin(st.t * 0.9 + i) * 0.25);
+        });
+        tr.x = ((st.dist * 0.5) % 7) * 0.12 * st.moving;
+        shadow.position.set(root.x + 9, root.y + 12);
+      });
+    }
+    case 'carrier': {
+      aura(320, 0.25);
+      const body = add(art.carrier);
+      const fans = [[-50, -46], [-50, 46], [40, -46], [40, 46]].map(([x, y]) => {
+        const r = new Sprite(art.droneRotor.base);
+        r.anchor.set(0.5);
+        r.scale.set(2.3);
+        r.position.set(x, y);
+        body.c.addChild(r);
+        return r;
+      });
+      const sh = shadowOf(art.carrier.base, 0.26);
+      sh.scale.set(0.9);
+      shadow.addChild(sh);
+      return done((st) => {
+        body.c.rotation = st.angle;
+        sh.rotation = st.angle;
+        fans.forEach((f, i) => (f.rotation += i % 2 ? 0.5 : -0.5));
+        body.glow.alpha = 0.8 + Math.sin(st.t * 3) * 0.2;
+        shadow.position.set(root.x + 60, root.y + 90);
+        root.y += Math.sin(st.t * 1.2) * 2.5;
+      });
+    }
+    case 'stormfort': {
+      const cloud: Sprite[] = [];
+      for (let i = 0; i < 5; i++) {
+        const c = new Sprite(fx.fog);
+        c.anchor.set(0.5);
+        c.scale.set(0.9 + i * 0.12);
+        c.tint = 0x3a4060;
+        c.alpha = 0.32;
+        cloud.push(c);
+      }
+      const halo = aura(260, 0.3);
+      const base = add(art.stormBase);
+      const spire = add(art.stormSpire);
+      root.addChild(...cloud);
+      const sh = shadowOf(art.stormBase.base, 0.42);
+      shadow.addChild(sh);
+      return done((st) => {
+        base.c.rotation = st.angle;
+        sh.rotation = st.angle;
+        spire.c.rotation = -st.t * 1.5;
+        spire.glow.alpha = 0.6 + Math.random() * 0.4 * (0.5 + st.flash);
+        halo.alpha = 0.2 + Math.sin(st.t * 3) * 0.08 + st.flash * 0.4;
+        cloud.forEach((c, i) => {
+          const a = st.t * (0.25 + i * 0.05) + i * 1.3;
+          c.position.set(Math.cos(a) * 46, Math.sin(a) * 46);
+          c.rotation = a;
+        });
+        base.c.y = Math.abs(Math.sin(st.dist * 0.06)) * -1.5 * st.moving;
+        shadow.position.set(root.x + 10, root.y + 14);
+      });
+    }
+    case 'orbital': {
+      // only used for portraits and cut-ins: the strike itself is drawn by the world
+      aura(170, 0.35);
+      const body = add(art.satellite);
+      return done((st) => {
+        body.c.rotation = st.angle * 0.3;
+        body.glow.alpha = 0.7 + Math.sin(st.t * 4) * 0.3;
+      });
+    }
+    case 'dragon': {
+      aura(260, 0.25);
+      const N = 9, GAP = 22;
+      const segC = new Container();
+      root.addChild(segC);
+      const segs = Array.from({ length: N }, (_, i) => {
+        const sg = add(art.dragonSeg, segC);
+        sg.c.scale.set(1 - (i / N) * 0.55);
+        return sg;
+      });
+      const wings = [1, -1].map((s) => {
+        const w = add(art.dragonWing);
+        w.c.scale.y = s;
+        return w;
+      });
+      const head = add(art.dragonHead);
+      const sh = shadowOf(art.dragonHead.base, 0.25);
+      shadow.addChild(sh);
+      // world-space trail of the head; segments follow it like a serpent
+      const hist: { x: number; y: number }[] = [];
+      let last = { x: NaN, y: NaN };
+      return done((st) => {
+        const hx = root.x, hy = root.y;
+        if (!(Math.hypot(hx - last.x, hy - last.y) < 300)) {
+          hist.length = 0;
+          for (let i = 0; i < N * GAP; i++) hist.push({ x: hx - Math.cos(st.angle) * i, y: hy - Math.sin(st.angle) * i });
+        }
+        const step = Math.hypot(hx - last.x, hy - last.y) || 0;
+        for (let k = 0; k < Math.min(30, Math.ceil(step)); k++) {
+          const f = (k + 1) / Math.ceil(step);
+          hist.unshift({ x: last.x + (hx - last.x) * f, y: last.y + (hy - last.y) * f });
+        }
+        if (hist.length > N * GAP + 2) hist.length = N * GAP + 2;
+        last = { x: hx, y: hy };
+        const wave = Math.sin(st.t * 3);
+        for (let i = 0; i < N; i++) {
+          const p0 = hist[Math.min(hist.length - 1, (i + 1) * GAP)], p1 = hist[Math.min(hist.length - 1, (i + 1) * GAP - 4)];
+          const sg = segs[i].c;
+          const a = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+          const off = Math.sin(st.t * 4 - i * 0.7) * 4;
+          sg.position.set(p0.x - hx - Math.sin(a) * off, p0.y - hy + Math.cos(a) * off);
+          sg.rotation = a;
+        }
+        head.c.rotation = st.angle;
+        const w1 = segs[0].c;
+        wings.forEach((w, i) => {
+          w.c.position.copyFrom(w1.position);
+          w.c.rotation = w1.rotation;
+          w.c.scale.x = 1;
+          w.c.scale.y = (i ? -1 : 1) * (0.8 + wave * 0.25);
+        });
+        head.glow.alpha = 0.8 + st.flash;
+        sh.rotation = st.angle;
+        shadow.position.set(root.x + 50, root.y + 80);
+      });
+    }
   }
 }
 

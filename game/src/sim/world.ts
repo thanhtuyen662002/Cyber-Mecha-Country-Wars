@@ -121,6 +121,8 @@ export interface WorldHooks {
   bigBoom(x: number, y: number, power: number): void;
   hitStop(s: number): void;
   cinematic(u: { x: number; y: number }, tier: number, key: UnitKey, name: string, unitName: string, f: Faction): void;
+  /** Draw a lightning bolt onto a world point (no damage: the caller applies it). */
+  bolt(x: number, y: number): void;
   sound(kind: 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm' | 'flak' | 'sniper' | 'flame' | 'drop', vol?: number): void;
 }
 
@@ -527,6 +529,7 @@ export class World {
     const def = UNITS[key];
     const f = this.factions[fid];
     if (key === 'strike') return this.launchStrike(f, name, uid);
+    if (key === 'orbital') return this.launchOrbital(f, name, uid);
     if (this.units.length >= UNIT_CAP) {
       if (def.tier <= 1) {
         const mate = this.units.find((u) => u.fid === fid && u.def.key === key && u.squad < 12);
@@ -633,6 +636,130 @@ export class World {
     this.units.push(u);
     this.hooks.cinematic(tgt, 6, 'strike', name || f.def.name, def.name, f);
     this.hooks.sound('alarm', 1);
+  }
+
+
+  // ================================================================ expansion unit behaviours
+  private boltHit(t: Target, dmg: number, u: Unit) {
+    this.hooks.bolt(t.x, t.y);
+    this.particles.flash(t.x, t.y, 1.6, 0xb8d0ff, 0.25);
+    this.particles.sparks(t.x, t.y, 16, 0xcfe0ff, 360);
+    this.stampDecal(this.fx.scorch, t.x, t.y, 0.7, 0.8);
+    this.damage(t, dmg, 'storm', u, u.fid);
+    this.hooks.shake(4);
+  }
+
+  /** Repair drones follow the most damaged friendly unit and patch it up with a green beam. */
+  private updateRepair(u: Unit, dt: number) {
+    u.retarget -= dt;
+    if (u.retarget <= 0 || !u.target?.alive) {
+      u.retarget = 0.6;
+      let best: Unit | null = null, bs = 0;
+      for (const o of this.near(u.x, u.y, 520)) {
+        if (o.fid !== u.fid || o === u || o.def.key === 'strike' || o.hp >= o.maxHp) continue;
+        const s = (1 - o.hp / o.maxHp) * (1 + o.def.tier) - Math.hypot(o.x - u.x, o.y - u.y) / 800;
+        if (s > bs) (bs = s), (best = o);
+      }
+      u.target = best;
+      if (!best) this.chooseGoal(u);
+    }
+    const t = u.target as Unit | null;
+    let gx = u.goalX, gy = u.goalY;
+    if (t) {
+      // hover just behind the patient
+      gx = t.x - Math.cos(t.angle) * 50;
+      gy = t.y - Math.sin(t.angle) * 50;
+    }
+    const dx = gx - u.x, dy = gy - u.y, d = Math.hypot(dx, dy) || 1;
+    const sp = d > 30 ? u.def.speed : 0;
+    const k = Math.min(1, 3 * dt);
+    u.vx += ((dx / d) * sp - u.vx) * k;
+    u.vy += ((dy / d) * sp - u.vy) * k;
+    u.x = clamp(u.x + u.vx * dt, 20, W - 20);
+    u.y = clamp(u.y + u.vy * dt, 20, H - 20);
+    const v = Math.hypot(u.vx, u.vy);
+    u.moving = clamp(v / u.def.speed, 0, 1);
+    if (v > 4) u.angle += angDiff(u.angle, Math.atan2(u.vy, u.vx)) * Math.min(1, dt * 5);
+    if (t && Math.hypot(t.x - u.x, t.y - u.y) < u.def.range) {
+      u.cool -= dt;
+      if (u.cool <= 0) {
+        u.cool = 0.25;
+        const m = this.muzzle(u, 24, 3);
+        this.beam(m.x, m.y, t.x, t.y, 5, 0x6dff9a, 0.22);
+        this.particles.sparks(t.x, t.y, 2, 0x9affb8, 90);
+        t.hp = Math.min(t.maxHp, t.hp + u.def.dmg * 0.25 * (1 + t.def.tier * 0.5));
+      }
+      u.aim = Math.atan2(t.y - u.y, t.x - u.x);
+    }
+  }
+
+  /** Drone carriers keep a swarm of kamikaze drones in the air. */
+  private carrierLaunch(u: Unit, dt: number) {
+    if (u.special > 0) return; // ticks down in updateUnit
+    u.special = 4.5;
+    let mine = 0;
+    for (const o of this.units) if (o.fid === u.fid && o.def.key === 'drone' && o.born > this.time - 30) mine++;
+    if (mine >= 12) return;
+    for (let i = 0; i < 3; i++) {
+      const at = { x: u.x + Math.cos(u.angle) * 60 + rand(-20, 20), y: u.y + Math.sin(u.angle) * 60 + rand(-30, 30) };
+      const d = this.spawn('drone', u.fid, '', u.uid, 0, at);
+      if (d) d.angle = d.aim = u.angle;
+    }
+    this.particles.ring(u.x, u.y, 1.2, this.factions[u.fid].color, 0.35);
+    this.hooks.sound('rocket', 0.5);
+  }
+
+  // ================================================================ orbital cannon (tier 6)
+  private orbitalQueue: { f: Faction; name: string; uid: string }[] = [];
+  private orbital: { f: Faction; name: string; uid: string; x: number; y: number; t: number; dir: number } | null = null;
+  get orbitalActive() {
+    return !!this.orbital;
+  }
+  private launchOrbital(f: Faction, name: string, uid: string): null {
+    if (this.orbitalQueue.length < 5) this.orbitalQueue.push({ f, name, uid });
+    return null;
+  }
+  private updateOrbital(dt: number) {
+    if (!this.orbital && this.orbitalQueue.length && !this.strikeActive) {
+      const { f, name, uid } = this.orbitalQueue.shift()!;
+      const enemies = this.slotted.filter((e) => e.id !== f.id && e.fort?.alive);
+      const tgt = enemies.sort((a, b) => b.score - a.score || b.fort!.hp - a.fort!.hp)[0]?.fort ?? { x: W / 2, y: H / 2 };
+      this.orbital = { f, name, uid, x: tgt.x, y: tgt.y, t: 0, dir: Math.random() < 0.5 ? -1 : 1 };
+      this.hooks.cinematic(this.orbital, 6, 'orbital', name || f.def.name, UNITS.orbital.name, f);
+      this.hooks.sound('alarm', 1);
+      this.hooks.feedText(`ORBITAL CANNON LOCKED by ${name ? '@' + name : f.def.name}!`, f.code, 0xffe27a);
+    }
+    const o = this.orbital;
+    if (!o) return;
+    o.t += dt;
+    const col = o.f.color;
+    if (o.t < 2.2) {
+      // targeting: shrinking rings + warning sparks
+      if (Math.random() < dt * 8) this.particles.ring(o.x, o.y, 3.4 - o.t, col, 0.4);
+      if (Math.random() < dt * 4) this.beam(o.x - 260, o.y, o.x + 260, o.y, 3, col, 0.1), this.beam(o.x, o.y - 260, o.x, o.y + 260, 3, col, 0.1);
+      return;
+    }
+    if (o.t < 2.2 + dt * 1.5) {
+      this.hooks.bigBoom(o.x, o.y, 1);
+      this.hooks.sound('bigboom');
+      this.hooks.shake(30);
+    }
+    if (o.t < 4.8) {
+      // the beam sweeps slowly across the target
+      const p = (o.t - 2.2) / 2.6;
+      const bx = o.x + o.dir * (p - 0.5) * 300, by = o.y + Math.sin(p * 6) * 30;
+      this.beam(bx, by - 1400, bx, by, 150, col, 0.08);
+      this.beam(bx, by - 1400, bx, by, 60, 0xffffff, 0.08);
+      this.particles.flash(bx, by, 3, col, 0.12);
+      if (Math.random() < 0.6) this.particles.explode(bx + rand(-50, 50), by + rand(-50, 50), 2);
+      if (Math.random() < 0.3) this.stampDecal(this.fx.scorch, bx, by, 1.4, 0.8);
+      this.splashAt(bx, by, 110, 42, o.f.id, true, 'orbital', null);
+      this.hooks.shake(8);
+      this.addHeat(bx, by, 8);
+      return;
+    }
+    this.stampDecal(this.fx.crater, o.x, o.y, 2.6, 0.9);
+    this.orbital = null;
   }
 
   // ================================================================ supply crates
@@ -889,7 +1016,7 @@ export class World {
     if (tier >= 2) {
       this.hooks.shake(6 + tier * 4);
       if (tier >= 3) this.hooks.hitStop(0.05);
-      const wreckTex = ({ tank: this.art.tankHull, aa: this.art.aaHull, spider: this.art.spiderBody, heli: this.art.heliBody, robot: this.art.robotTorso, titan: this.art.titanTorso, bomber: this.art.bomber } as Partial<Record<UnitKey, { base: Texture }>>)[u.def.key]?.base;
+      const wreckTex = ({ tank: this.art.tankHull, aa: this.art.aaHull, spider: this.art.spiderBody, heli: this.art.heliBody, robot: this.art.robotTorso, titan: this.art.titanTorso, bomber: this.art.bomber, jeep: this.art.jeepBody, mbt: this.art.mbtHull, mlrs: this.art.mlrsHull, emp: this.art.empHull, hover: this.art.hoverBody, mobile: this.art.mobileHull, carrier: this.art.carrier, stormfort: this.art.stormBase, dragon: this.art.dragonHead } as Partial<Record<UnitKey, { base: Texture }>>)[u.def.key]?.base;
       if (wreckTex && this.wrecks.length < 30) {
         const s = new Sprite(wreckTex);
         s.anchor.set(0.5);
@@ -921,7 +1048,7 @@ export class World {
   lightningAt(x: number, y: number) {
     let best: Unit | null = null, bd = 260;
     for (const u of this.units) {
-      if (u.def.key === 'strike') continue;
+      if (u.def.key === 'strike' || u.def.key === 'stormfort') continue;
       const tall = u.cls === 'mech' ? u.def.tier * 40 + 60 : u.def.tier * 15;
       const d = Math.hypot(u.x - x, u.y - y) - tall;
       if (d < bd) (bd = d), (best = u);
@@ -1073,6 +1200,7 @@ export class World {
     this.captureBonuses(dt);
     this.updateCrates(dt);
     this.updateStrikes();
+    this.updateOrbital(dt);
     for (let i = this.wrecks.length - 1; i >= 0; i--) {
       const w = this.wrecks[i];
       w.life -= dt;
@@ -1122,6 +1250,7 @@ export class World {
     u.shield = Math.max(0, u.shield - dt);
     u.haste = Math.max(0, u.haste - dt);
     if (def.key === 'bomber' || def.key === 'strike') return this.updateBomber(u, dt);
+    if (def.weapon === 'repair') return this.updateRepair(u, dt);
     u.retarget -= dt;
     if (u.retarget <= 0 || (u.target && !u.target.alive)) {
       u.retarget = 0.4 + Math.random() * 0.25;
@@ -1140,7 +1269,7 @@ export class World {
     const engage = tgt && dToT < range;
     const ter = TERRAINS.find((t) => t.key === this.terrain)!;
     let speed = def.speed;
-    if (u.cls !== 'air') {
+    if (u.cls !== 'air' && def.key !== 'hover') {
       speed *= ter.groundSpeed;
       if (u.cls === 'vehicle' || u.cls === 'mech') speed *= ter.heavyPenalty;
       if (this.weather === 'rain' || this.weather === 'storm') speed *= 0.88;
@@ -1152,7 +1281,7 @@ export class World {
     dx /= dl;
     dy /= dl;
     if (engage && def.weapon !== 'kamikaze') {
-      if (def.key === 'heli') {
+      if (def.key === 'heli' || def.key === 'dragon') {
         const tx = -dy, ty = dx;
         dx = tx;
         dy = ty;
@@ -1190,6 +1319,9 @@ export class World {
     if ((def.key === 'tank' || def.key === 'aa') && v > 8 && Math.random() < dt * 8 && this.terrain !== 'city') {
       for (const s of [-1, 1]) this.stampDecal(this.fx.track, u.x - Math.sin(u.angle) * 17 * s, u.y + Math.cos(u.angle) * 17 * s, 1, 0.5, u.angle + Math.PI / 2);
     }
+    if (def.key === 'hover' && v > 10 && Math.random() < dt * 10) this.particles.smokePuff(u.x - Math.cos(u.angle) * 44 + rand(-14, 14), u.y - Math.sin(u.angle) * 44 + rand(-14, 14), 0.5, this.terrain === 'ice' ? 0xe8f0ff : 0xa89a80, 1, 0.35);
+    if (def.key === 'carrier') this.carrierLaunch(u, dt);
+    if (def.key === 'stormfort' && Math.random() < dt * 1.5) this.particles.sparks(u.x + rand(-40, 40), u.y + rand(-40, 40), 3, 0xb8c8ff, 160);
     if (def.key === 'heli' && Math.random() < dt * 4) this.particles.trail(u.x - Math.cos(u.angle) * 40, u.y - Math.sin(u.angle) * 40, 0.6, 0x666666);
 
     u.cool -= dt * (this.coreOwner() === u.fid ? 1.3 : 1);
@@ -1310,12 +1442,12 @@ export class World {
         break;
       }
       case 'shell': {
-        const m = this.muzzle(u, 39, 0);
+        const m = this.muzzle(u, u.def.key === 'mbt' ? 58 : 39, 0);
         this.particles.muzzle(m.x, m.y, u.aim, 0.7, 0xffc070);
         this.particles.smokePuff(m.x, m.y, 0.5, 0x777777, 1.2);
         u.flash = 0.6;
-        this.fire('shell', m.x, m.y, t, u, u.fid, dmg, 40, 0xffd28a, 'shell', 12);
-        this.hooks.sound('cannon', 0.5);
+        this.fire('shell', m.x, m.y, t, u, u.fid, dmg, u.def.key === 'mbt' ? 60 : 40, 0xffd28a, 'shell', 12);
+        this.hooks.sound('cannon', u.def.key === 'mbt' ? 0.8 : 0.5);
         break;
       }
       case 'flak': {
@@ -1339,7 +1471,7 @@ export class World {
       }
       case 'rocket': {
         for (const side of [-1, 1]) {
-          const m = this.muzzle(u, 10, 22 * side);
+          const m = u.def.key === 'hover' ? this.muzzle(u, -4, 16 * side) : this.muzzle(u, 10, 22 * side);
           this.particles.muzzle(m.x, m.y, u.aim, 0.4, 0xffb060);
           this.fire('rocket', m.x, m.y, t, u, u.fid, dmg, 45, 0xffffff, 'rocket', 20);
         }
@@ -1360,6 +1492,101 @@ export class World {
         this.particles.muzzle(m.x, m.y, u.aim, 0.45, f.color);
         this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, 0, f.color, 'titan', 22);
         this.hooks.sound('gun', 0.45);
+        break;
+      }
+      case 'mg': {
+        const m = this.muzzle(u, 20, 0);
+        this.particles.muzzle(m.x, m.y, u.aim, 0.3, 0xffe08a);
+        this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, 0, 0xffe2a0, 'mg', 14);
+        if (u.salvo++ % 3 === 0) this.hooks.sound('gun', 0.3);
+        break;
+      }
+      case 'artillery': {
+        // six-rocket salvo arcing onto the target area
+        u.flash = 1;
+        for (let i = 0; i < 6; i++) {
+          const m = this.muzzle(u, -2 + (i % 3) * 7, -8 + ((i / 3) | 0) * 16);
+          this.fire('rocket', m.x, m.y, t, u, u.fid, dmg, 55, 0xffffff, 'artillery', 70);
+        }
+        this.particles.smokePuff(u.x, u.y, 1.4, 0x9a9a9a, 2.2, 0.5);
+        this.hooks.sound('rocket', 0.9);
+        break;
+      }
+      case 'emp': {
+        // electromagnetic pulse: wrecks electronics (mechs, drones), stuns everything in the blast
+        u.flash = 1;
+        const m = this.muzzle(u, -6, 0);
+        this.beam(m.x, m.y, t.x, t.y, 14, 0x9ad8ff, 0.18);
+        this.particles.ring(t.x, t.y, 2.4, 0x9ad8ff, 0.45);
+        this.particles.flash(t.x, t.y, 1.6, 0x9ad8ff, 0.25);
+        this.particles.sparks(t.x, t.y, 24, 0xcfe8ff, 360);
+        this.splashAt(t.x, t.y, 130, dmg, u.fid, true, 'emp', u);
+        for (const o of this.near(t.x, t.y, 150)) {
+          if (o.fid === u.fid || o.def.key === 'strike') continue;
+          o.cool = Math.max(o.cool, 1.4);
+          o.vx *= 0.1;
+          o.vy *= 0.1;
+        }
+        if (t.cls === 'fort') this.damage(t, dmg, 'emp', u, u.fid);
+        this.hooks.sound('laser', 0.8);
+        break;
+      }
+      case 'mobile': {
+        // three turrets take turns: two cannons, then the main rail gun
+        const k = u.salvo++ % 3;
+        const c = Math.cos(u.angle), s = Math.sin(u.angle);
+        const [ox, oy] = k === 0 ? [38, 0] : k === 1 ? [-6, -16] : [-6, 16];
+        const bx = u.x + c * ox - s * oy, by = u.y + s * ox + c * oy;
+        const mx = bx + Math.cos(u.aim) * (k === 0 ? 44 : 28), my = by + Math.sin(u.aim) * (k === 0 ? 44 : 28);
+        this.particles.muzzle(mx, my, u.aim, k === 0 ? 0.9 : 0.6, 0xffc070);
+        if (t.cls === 'air') this.fire('bullet', mx, my, t, u, u.fid, dmg * 0.5, 20, 0xfff0a0, 'mobile', 16);
+        else this.fire('shell', mx, my, t, u, u.fid, k === 0 ? dmg * 1.6 : dmg, 50, 0xffd28a, 'mobile', 14);
+        u.flash = 0.6;
+        this.hooks.sound('cannon', k === 0 ? 0.8 : 0.5);
+        break;
+      }
+      case 'carrier': {
+        // point-defence guns along the deck
+        const m = this.muzzle(u, rand(-60, 80), rand(-30, 30));
+        this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, t.cls === 'air' ? 20 : 0, f.color, 'carrier', 18);
+        if (u.salvo++ % 4 === 0) this.hooks.sound('flak', 0.3);
+        break;
+      }
+      case 'storm': {
+        // calls lightning onto the target, chaining to up to two more enemies
+        u.flash = 1;
+        let x = t.x, y = t.y;
+        const hit = new Set<Target>([t]);
+        this.boltHit(t, dmg, u);
+        for (let j = 0; j < 2; j++) {
+          let nx: Unit | null = null, nd = 160;
+          for (const o of this.near(x, y, 160)) {
+            if (o.fid === u.fid || hit.has(o) || o.def.key === 'strike') continue;
+            const d = Math.hypot(o.x - x, o.y - y);
+            if (d < nd) (nd = d), (nx = o);
+          }
+          if (!nx) break;
+          this.beam(x, y, nx.x, nx.y, 6, 0xcfe0ff, 0.2);
+          hit.add(nx);
+          this.boltHit(nx, dmg * 0.5, u);
+          x = nx.x;
+          y = nx.y;
+        }
+        this.hooks.sound('thunder', 0.7);
+        break;
+      }
+      case 'dragon': {
+        // flame breath cone
+        const m = this.muzzle(u, 46, 0);
+        for (let i = 0; i < 3; i++) {
+          const a = u.aim + rand(-0.25, 0.25), v = rand(380, 520);
+          this.particles.spawn(this.fx.flame, true, m.x, m.y, Math.cos(a) * v, Math.sin(a) * v, 0.45, 0.4, 1.6, 1, 0, 0xfff0b0, { c1: f.color, drag: 1.6, rot: a + Math.PI / 2 });
+        }
+        const wet = this.weather === 'rain' || this.weather === 'storm' ? 0.7 : 1;
+        this.splashAt(t.x, t.y, 45, dmg * wet, u.fid, true, 'dragon', u);
+        if (t.cls === 'fort') this.damage(t, dmg * 1.5, 'dragon', u, u.fid);
+        if (Math.random() < 0.08) this.stampDecal(this.fx.scorch, t.x + rand(-30, 30), t.y + rand(-30, 30), 0.6, 0.6);
+        if (u.salvo++ % 5 === 0) this.hooks.sound('flame', 0.7);
         break;
       }
       default:

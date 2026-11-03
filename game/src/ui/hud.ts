@@ -21,7 +21,7 @@ const ease = (x: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 interface FeedLine { root: Container; flag: Sprite; text: Text; life: number }
 
 /** Approximate on-screen footprint (px) of each unit rig, used to frame portraits. */
-const FOOT: Record<UnitKey, number> = { infantry: 34, sniper: 44, at: 36, drone: 34, flamer: 34, tank: 62, aa: 62, spider: 104, heli: 120, robot: 92, bomber: 100, titan: 180, strike: 100 };
+const FOOT: Record<UnitKey, number> = { infantry: 34, sniper: 44, at: 36, drone: 34, flamer: 34, tank: 62, aa: 62, spider: 104, heli: 120, robot: 92, bomber: 100, titan: 180, strike: 100, jeep: 52, repair: 48, mbt: 90, mlrs: 70, emp: 62, hover: 110, mobile: 150, carrier: 220, stormfort: 150, orbital: 110, dragon: 200 };
 const CLASS_NAME = { inf: 'infantry', vehicle: 'vehicles', mech: 'mechs', air: 'aircraft', fort: 'fortresses' } as const;
 
 /** A unit rig animated in place, for cards and the unit guide. */

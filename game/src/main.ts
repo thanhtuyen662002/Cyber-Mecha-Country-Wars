@@ -187,6 +187,7 @@ async function main() {
       }
       // only notable kills reach the feed (keeps it readable)
       if (victim.def.tier < 2 && !(killer && killer.def.tier >= 4 && killer.def.key !== 'strike' && victim.def.tier >= 1)) return;
+      if (!killer && world.orbitalActive) return; // the orbital beam announces itself
       const kf = world.factions[killerFid], vf = world.factions[victim.fid];
       const whom = victim.name ? `@${victim.name}` : vf.def.name;
       if (!kf) return hud.pushFeed(`⚡ Lightning struck ${whom} [${victim.def.name}]`, vf.code, 0xb8d0ff);
@@ -213,6 +214,7 @@ async function main() {
       if (tier >= 5) sfx.play('alarm');
     },
     sound: (k, v) => sfx.play(k, v),
+    bolt: (x, y) => weather.boltAt(x, y),
   };
 
   game.onFeed = (t, code, color) => hud.pushFeed(t, code, color);

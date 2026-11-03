@@ -1,7 +1,7 @@
 // Operator panel (HTML, hidden with ?clean so it never shows on stream).
 // Test every TikTok action through the same event pipeline as the live connection.
 import { WEATHERS } from '../core/config';
-import { TIER_MIN } from '../core/units';
+import { TIER_MIN, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
 import type { EventQueue } from '../net/events';
 import type { LiveSource } from '../net/live';
 import { ALL_CODES, type Simulator } from '../net/sim';
@@ -22,6 +22,7 @@ export class DevPanel {
   private statsEl = document.createElement('div');
   private collapsed = window.innerWidth < 700;
   private code = 'US';
+  private unit: UnitKey = 'dragon';
 
   constructor(private el: HTMLElement, private d: Deps) {
     this.render();
@@ -83,7 +84,20 @@ export class DevPanel {
       this.btn('Rose x1', () => sim.gift(1)), this.btn('Rose x20', () => sim.gift(1, 20)), this.btn('30', () => sim.gift(30)), this.btn('100', () => sim.gift(100)),
       this.btn('500', () => sim.gift(500)), this.btn('1,000', () => sim.gift(1000)), this.btn('10,000', () => sim.gift(10000)), this.btn('44,999', () => sim.gift(44999), false, 'red'),
     ]));
-    body.appendChild(this.group('Unit commands (next gift)', ['!tank', '!aa', '!spider', '!drone', '!flame', '!robot', '!bomber'].map((c) => this.btn(c, () => sim.command(c)))));
+    body.appendChild(this.group('Unit commands (next gift)', ['!jeep', '!repair', '!mbt', '!mlrs', '!emp', '!hover', '!fortress', '!carrier', '!storm', '!orbital', '!dragon', '!robot', '!bomber'].map((c) => this.btn(c, () => sim.command(c)))));
+    const us = document.createElement('select');
+    for (const k of UNIT_KEYS) {
+      const o = document.createElement('option');
+      o.value = k;
+      o.textContent = `T${UNITS[k].tier} ${UNITS[k].name}`;
+      if (k === this.unit) o.selected = true;
+      us.appendChild(o);
+    }
+    us.onchange = () => (this.unit = us.value as UnitKey);
+    body.appendChild(this.group('Spawn any unit (for the selected country)', [us, this.btn('Spawn', () => {
+      const f = this.d.world.faction(this.code);
+      this.d.world.spawn(this.unit, f.id, 'operator', '', 0);
+    })]));
     body.appendChild(this.group('Weather', WEATHERS.map((w) => this.btn(w.name, () => {
       game.weather = w.key;
       game.nextWeather = null;

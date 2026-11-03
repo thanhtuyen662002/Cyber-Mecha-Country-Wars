@@ -188,7 +188,17 @@ export class Weather {
 
   lightning(wx: number, wy: number) {
     const hit = this.onStrike(wx, wy);
-    const { x, y } = this.toScreen(hit.x, hit.y);
+    this.drawBolt(hit.x, hit.y, 0.55);
+    this.onThunder();
+  }
+
+  /** A bolt onto a world point without the weather's own damage (Storm Fortress). */
+  boltAt(wx: number, wy: number) {
+    this.drawBolt(wx, wy, 0.2);
+  }
+
+  private drawBolt(wx: number, wy: number, flash: number) {
+    const { x, y } = this.toScreen(wx, wy);
     const pts: number[] = [];
     let px = x + rand(-200, 200), py = -20;
     pts.push(px, py);
@@ -212,7 +222,6 @@ export class Weather {
     draw(this.boltGlow, 16, 0x7aa8ff, 0.35);
     draw(this.bolt, 3, 0xf2f6ff, 1);
     this.boltLife = 0.35;
-    this.flashOverlay.alpha = 0.55;
-    this.onThunder();
+    this.flashOverlay.alpha = Math.max(this.flashOverlay.alpha, flash);
   }
 }

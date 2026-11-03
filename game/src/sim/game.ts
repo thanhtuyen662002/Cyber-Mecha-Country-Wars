@@ -233,18 +233,32 @@ export class Game {
       enemy.mech += o.cls.mech;
       enemy.air += o.cls.air;
     }
+    const enemyAA = this.world.units.filter((u) => (u.def.key === 'aa' || u.def.key === 'mobile') && u.fid !== f.id).length;
+    const armour = enemy.vehicle + enemy.mech;
+    const wounded = this.world.units.filter((u) => u.fid === f.id && u.def.tier >= 2 && u.hp < u.maxHp * 0.6).length;
+    const r = Math.random();
     switch (tier) {
       case 0:
         return 'infantry';
       case 1:
-        return enemy.inf > 25 && Math.random() < 0.6 ? 'flamer' : Math.random() < 0.6 ? 'drone' : 'flamer';
+        if (enemy.inf > 25 && r < 0.45) return 'flamer';
+        return r < 0.4 ? 'drone' : r < 0.7 ? 'jeep' : 'flamer';
       case 2:
         if (enemy.air >= 4 || f.hurtBy.air > 300) return 'aa';
-        return enemy.vehicle + enemy.mech > enemy.inf * 0.3 ? (Math.random() < 0.5 ? 'spider' : 'tank') : Math.random() < 0.6 ? 'tank' : 'spider';
-      case 4: {
-        const aa = this.world.units.filter((u) => u.def.key === 'aa' && u.fid !== f.id).length;
-        return aa >= 3 ? 'robot' : Math.random() < 0.5 ? 'bomber' : 'robot';
-      }
+        if (wounded >= 3 && r < 0.4) return 'repair';
+        return armour > enemy.inf * 0.3 ? (r < 0.5 ? 'spider' : 'tank') : r < 0.55 ? 'tank' : r < 0.85 ? 'spider' : 'repair';
+      case 3:
+        if (enemy.mech + enemy.air >= 6 && r < 0.5) return 'emp';
+        if (enemyAA >= 3) return r < 0.5 ? 'mbt' : 'mlrs';
+        return r < 0.3 ? 'heli' : r < 0.55 ? 'mbt' : r < 0.8 ? 'mlrs' : 'emp';
+      case 4:
+        if (enemyAA >= 3) return r < 0.4 ? 'robot' : r < 0.7 ? 'mobile' : 'hover';
+        return r < 0.3 ? 'bomber' : r < 0.55 ? 'robot' : r < 0.8 ? 'hover' : 'mobile';
+      case 5:
+        if (enemy.air >= 8) return r < 0.6 ? 'carrier' : 'titan';
+        return r < 0.4 ? 'titan' : r < 0.7 ? 'stormfort' : 'carrier';
+      case 6:
+        return r < 0.4 ? 'strike' : r < 0.7 ? 'orbital' : 'dragon';
       default:
         return pick(opts);
     }
@@ -314,7 +328,7 @@ export class Game {
       const cap = idle ? 22 : 8;
       if (f.units >= cap) continue;
       const r = Math.random();
-      const key: UnitKey = r < 0.62 ? 'infantry' : r < 0.72 ? 'sniper' : r < 0.8 ? 'at' : r < 0.88 ? 'drone' : r < 0.93 ? 'flamer' : idle && r < 0.98 ? pick(['tank', 'aa', 'spider'] as UnitKey[]) : 'infantry';
+      const key: UnitKey = r < 0.62 ? 'infantry' : r < 0.72 ? 'sniper' : r < 0.8 ? 'at' : r < 0.86 ? 'drone' : r < 0.9 ? 'flamer' : r < 0.93 ? 'jeep' : idle && r < 0.98 ? pick(['tank', 'aa', 'spider'] as UnitKey[]) : 'infantry';
       w.spawn(key, f.id, '', '', 0);
     }
   }
