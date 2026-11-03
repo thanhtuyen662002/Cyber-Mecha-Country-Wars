@@ -1,6 +1,6 @@
 // Operator panel (HTML, hidden with ?clean so it never shows on stream).
 // Test every TikTok action through the same event pipeline as the live connection.
-import { WEATHERS } from '../core/config';
+import { TERRAINS, WEATHERS } from '../core/config';
 import { TIER_MIN, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
 import type { EventQueue } from '../net/events';
 import type { LiveSource } from '../net/live';
@@ -104,6 +104,10 @@ export class DevPanel {
       game.weatherIn = 240;
       game.onWeather(w.key);
     }, game.weather === w.key))));
+    body.appendChild(this.group('Terrain (starts a new round)', TERRAINS.map((t, i) => this.btn(t.name, () => {
+      game.round.terrainIdx = i - 1;
+      game.newRound();
+    }, game.terrain === t.key))));
     body.appendChild(this.group('Stress & round', [
       this.btn('Spam 500 gifts', () => sim.spam(500), false, 'red'),
       this.btn('Supply crate', () => this.d.world.dropCrate()),

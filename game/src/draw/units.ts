@@ -863,6 +863,20 @@ function stormSpire(): DrawFn {
   };
 }
 
+function depot(): DrawFn {
+  // cluster of explosive fuel drums (industrial terrain hazard)
+  return ({ b, g }) => {
+    for (const [x, y] of [[-12, -10], [10, -12], [-14, 10], [8, 9], [0, -1]]) {
+      b.circle(x + 3, y + 4, 10).fill({ color: 0x000000, alpha: 0.35 });
+      b.circle(x, y, 10).fill(0xb8321e).stroke({ width: 1.4, color: 0x2a0c06 });
+      b.circle(x, y, 6.5).stroke({ width: 1.2, color: 0x6a1a10 });
+      b.circle(x - 2.5, y - 2.5, 2.2).fill({ color: 0xffffff, alpha: 0.35 });
+      b.poly([x - 3, y + 3, x, y - 3, x + 3, y + 3]).fill(0xffd34d);
+      g.circle(x, y, 1).fill(0xffffff);
+    }
+  };
+}
+
 function satellite(): DrawFn {
   // orbital cannon satellite (portrait / cut-in only)
   return ({ b, p, g }) => {
@@ -962,6 +976,7 @@ export interface UnitArt {
   stormBase: PartTex;
   stormSpire: PartTex;
   satellite: PartTex;
+  depot: PartTex;
   dragonHead: PartTex;
   dragonSeg: PartTex;
   dragonWing: PartTex;
@@ -1013,6 +1028,7 @@ export function makeUnitArt(renderer: Renderer): UnitArt {
     stormBase: part(150, stormBase(), 6),
     stormSpire: part(64, stormSpire(), 6),
     satellite: part(128, satellite(), 5),
+    depot: part(56, depot(), 3),
     dragonHead: part(100, dragonHead(), 5),
     dragonSeg: part(56, dragonSeg(), 4),
     dragonWing: part(160, dragonWing(), 5),

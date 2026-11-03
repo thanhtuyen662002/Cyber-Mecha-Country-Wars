@@ -6,12 +6,17 @@ export const H = 1920;
 export const SIM_HZ = 30;
 export const SIM_DT = 1 / SIM_HZ;
 
-export type TerrainKey = 'jungle' | 'ice' | 'swamp' | 'city';
-export const TERRAINS: { key: TerrainKey; name: string; groundSpeed: number; heavyPenalty: number }[] = [
-  { key: 'jungle', name: 'Jungle', groundSpeed: 0.85, heavyPenalty: 1 },
-  { key: 'ice', name: 'Ice Field', groundSpeed: 1.1, heavyPenalty: 1 },
-  { key: 'swamp', name: 'Toxic Swamp', groundSpeed: 0.75, heavyPenalty: 0.7 },
-  { key: 'city', name: 'Ruined City', groundSpeed: 1, heavyPenalty: 1 },
+export type TerrainKey = 'jungle' | 'desert' | 'ice' | 'volcano' | 'swamp' | 'sea' | 'city' | 'industrial';
+/** Rotation order: one terrain per round. */
+export const TERRAINS: { key: TerrainKey; name: string; groundSpeed: number; heavyPenalty: number; hint: string }[] = [
+  { key: 'jungle', name: 'Jungle', groundSpeed: 0.85, heavyPenalty: 1, hint: 'Snipers hide in the trees' },
+  { key: 'desert', name: 'Desert', groundSpeed: 0.9, heavyPenalty: 1, hint: 'Wheels sink, energy weapons overheat' },
+  { key: 'ice', name: 'Ice Field', groundSpeed: 1.1, heavyPenalty: 1, hint: 'Slippery: vehicles slide' },
+  { key: 'volcano', name: 'Volcano', groundSpeed: 0.95, heavyPenalty: 1, hint: 'Lava burns ground units, fly over it' },
+  { key: 'swamp', name: 'Toxic Swamp', groundSpeed: 0.75, heavyPenalty: 0.7, hint: 'Heavy units bog down' },
+  { key: 'sea', name: 'Sea & Islands', groundSpeed: 1, heavyPenalty: 1, hint: 'Water slows ground units: hovercraft rule' },
+  { key: 'city', name: 'Ruined City', groundSpeed: 1, heavyPenalty: 1, hint: 'Close-quarters street fights' },
+  { key: 'industrial', name: 'Industrial Zone', groundSpeed: 1, heavyPenalty: 1, hint: 'Fuel depots explode, pylons arc' },
 ];
 
 export type WeatherKey = 'clear' | 'rain' | 'storm' | 'blizzard' | 'fog' | 'wind';

@@ -5,6 +5,7 @@ import { BitmapFont, BitmapText, Container, RenderTexture, type Renderer, Sprite
 import { H, RESERVED, SIM_DT, TERRAINS, type TerrainKey, W, type WeatherKey, angDiff, clamp, lerp, pick, rand } from '../core/config';
 import { COUNTRY_BY_CODE, type CountryDef, MERC } from '../core/countries';
 import { COUNTER, UNITS, type UnitClass, type UnitDef, type UnitKey } from '../core/units';
+import { BARREL_SPOTS, LAVA_HALF, PYLONS, isWater, lavaDist } from '../core/terrainmap';
 import type { FlagAtlas } from '../draw/flags';
 import type { FxTextures } from '../draw/fxTextures';
 import type { UnitArt } from '../draw/units';
@@ -112,7 +113,7 @@ interface Crate {
   view: Container; chute: Sprite; body: Container; smoke: number; life: number;
 }
 
-export interface KillInfo { killer: Unit | null; killerFid: number; victim: Unit }
+export interface KillInfo { killer: Unit | null; killerFid: number; victim: Unit; cause?: 'lightning' | 'lava' | 'pylon' | 'depot' }
 
 export interface WorldHooks {
   feedKill(k: KillInfo): void;
@@ -762,6 +763,112 @@ export class World {
     this.orbital = null;
   }
 
+
+  // ================================================================ terrain hazards
+  private depots: { x: number; y: number; hp: number; alive: boolean; s: Container }[] = [];
+  private pylonT = PYLONS.map(() => rand(1, 3));
+  private hazardTerrain: TerrainKey | null = null;
+  private buildHazards() {
+    this.hazardTerrain = this.terrain;
+    for (const d of this.depots) (d.alive = false), d.s.destroy({ children: true });
+    this.depots = [];
+    if (this.terrain !== 'industrial') return;
+    for (const [x, y] of BARREL_SPOTS) {
+      const c = new Container();
+      for (const t of [this.art.depot.base, this.art.depot.glow]) {
+        const sp = new Sprite(t);
+        sp.anchor.set(0.5);
+        if (t === this.art.depot.glow) (sp.blendMode = 'add'), (sp.tint = 0xffb040);
+        c.addChild(sp);
+      }
+      c.position.set(x, y);
+      c.scale.set(1.15);
+      this.ground.addChildAt(c, 0);
+      this.depots.push({ x, y, hp: 220, alive: true, s: c });
+    }
+  }
+
+  private blowDepot(d: { x: number; y: number; hp: number; alive: boolean; s: Container }, fid: number, owner: Unit | null) {
+    d.alive = false;
+    d.s.visible = false;
+    this.particles.explode(d.x, d.y, 4);
+    this.particles.fireball(d.x, d.y, 2.2, 14);
+    this.stampDecal(this.fx.crater, d.x, d.y, 1.3, 0.9);
+    this.stampDecal(this.fx.scorch, d.x, d.y, 2, 1);
+    this.hooks.bigBoom(d.x, d.y, 0.5);
+    this.hooks.shake(16);
+    this.hooks.sound('bigboom', 0.8);
+    this.addHeat(d.x, d.y, 20);
+    // chain reaction: the blast hurts everyone (no faction is safe) and can set off neighbours
+    for (const u of this.near(d.x, d.y, 130)) {
+      if (u.cls === 'air' || u.def.key === 'strike') continue;
+      u.hp -= 180 * (1 - Math.hypot(u.x - d.x, u.y - d.y) / 160);
+      u.flash = 1;
+      if (u.hp <= 0) this.kill(u, owner, fid, 'depot');
+    }
+    for (const o of this.depots) if (o.alive && Math.hypot(o.x - d.x, o.y - d.y) < 280) this.delayedDepot(o, fid, owner);
+  }
+  private delayedDepot(d: { x: number; y: number; hp: number; alive: boolean; s: Container }, fid: number, owner: Unit | null) {
+    d.hp = Math.min(d.hp, 1);
+    setTimeout(() => d.alive && this.blowDepot(d, fid, owner), 350);
+  }
+
+  private updateHazards(dt: number) {
+    if (this.hazardTerrain !== this.terrain) this.buildHazards();
+    if (this.terrain === 'volcano') {
+      for (const u of this.units) {
+        if (u.cls === 'air' || !u.alive) continue;
+        if (lavaDist(u.x, u.y) > LAVA_HALF + u.radius * 0.3) continue;
+        u.hp -= (u.def.key === 'hover' ? 20 : 45) * dt * (1 + u.def.tier * 0.4);
+        u.flash = 0.5;
+        if (Math.random() < dt * 8) this.particles.flame(u.x + rand(-u.radius, u.radius) * 0.6, u.y + rand(-u.radius, u.radius) * 0.6, 0.7);
+        if (u.hp <= 0) this.kill(u, null, -1, 'lava');
+      }
+    }
+    if (this.terrain === 'sea') {
+      for (const u of this.units) {
+        if (u.cls === 'air' || !u.alive || u.def.key === 'hover') continue;
+        if (Math.random() < dt * 3 && Math.hypot(u.vx, u.vy) > 10 && isWater(u.x, u.y)) this.splash(u.x + rand(-u.radius, u.radius) * 0.5, u.y + rand(-u.radius, u.radius) * 0.5);
+      }
+    }
+    if (this.terrain === 'industrial') {
+      PYLONS.forEach(([x, y], i) => {
+        this.pylonT[i] -= dt;
+        if (this.pylonT[i] > 0) return;
+        this.pylonT[i] = rand(1.2, 2.4);
+        let best: Unit | null = null, bd = 120;
+        for (const u of this.near(x, y, 120)) {
+          if (u.def.key === 'strike') continue;
+          const d = Math.hypot(u.x - x, u.y - y);
+          if (d < bd) (bd = d), (best = u);
+        }
+        if (!best) return;
+        this.beam(x, y, best.x, best.y, 7, 0x9ad8ff, 0.2);
+        this.particles.sparks(best.x, best.y, 10, 0xcfe8ff, 260);
+        best.hp -= 50;
+        best.flash = 1;
+        this.hooks.sound('laser', 0.3);
+        if (best.hp <= 0) this.kill(best, null, -1, 'pylon');
+      });
+    }
+  }
+
+  /** Ground speed multiplier from the terrain under the unit. */
+  private terrainSpeed(u: Unit) {
+    if (u.def.key === 'hover') return 1;
+    if (this.terrain === 'desert' && (u.def.key === 'jeep' || u.def.key === 'mlrs' || u.def.key === 'emp')) return 0.8;
+    if (this.terrain === 'sea' && isWater(u.x, u.y)) return 0.45;
+    return 1;
+  }
+
+  /** Fire-rate penalty: energy weapons overheat in the desert (and in a heatwave). */
+  private heatFactor(u: Unit) {
+    const energy = u.def.weapon === 'laser' || u.def.weapon === 'flame' || u.def.weapon === 'emp' || u.def.weapon === 'storm';
+    let k = 1;
+    if (energy && this.terrain === 'desert') k *= 1.2;
+    return k;
+  }
+
   // ================================================================ supply crates
   dropCrate(golden = false, from = '', at?: { x: number; y: number }) {
     if (this.crates.length >= 6) return;
@@ -965,6 +1072,11 @@ export class World {
       const t = f.fort!;
       if (f.id !== fid && t.alive && Math.hypot(t.x - x, t.y - y) < r + t.radius) this.damage(t, dmg * 0.5, w, owner, fid);
     }
+    for (const d of this.depots) {
+      if (!d.alive || Math.hypot(d.x - x, d.y - y) > r + 30) continue;
+      d.hp -= dmg;
+      if (d.hp <= 0) this.blowDepot(d, fid, owner);
+    }
   }
 
   private stampDecal(tex: Texture, x: number, y: number, scale: number, alpha: number, rot = rand(0, 6.28), tint = 0xffffff) {
@@ -994,7 +1106,7 @@ export class World {
     this.hooks.feedText(`${victim.def.name} FORTRESS DESTROYED by ${by.def.name}!`, by.code, by.color);
   }
 
-  private kill(u: Unit, killer: Unit | null, killerFid: number) {
+  private kill(u: Unit, killer: Unit | null, killerFid: number, cause?: KillInfo['cause']) {
     u.alive = false;
     const tier = u.def.tier;
     const kf = this.factions[killerFid];
@@ -1006,7 +1118,7 @@ export class World {
       killer.kills++;
       if (killer.tag && killer.def.tier <= 1) killer.tagUntil = this.time + 2.5; // show name again on a kill
     }
-    this.hooks.feedKill({ killer, killerFid, victim: u });
+    this.hooks.feedKill({ killer, killerFid, victim: u, cause });
     this.particles.explode(u.x, u.y, tier + (u.def.key === 'drone' ? 1 : 0));
     this.hooks.sound(tier >= 2 ? 'boom' : 'gun', tier >= 2 ? 1 : 0.4);
     if (u.cls !== 'air' || u.def.key === 'heli') {
@@ -1060,7 +1172,7 @@ export class World {
     if (best) {
       best.hp -= 260;
       best.flash = 1;
-      if (best.hp <= 0) this.kill(best, null, -1);
+      if (best.hp <= 0) this.kill(best, null, -1, 'lightning');
     }
     this.hooks.shake(10);
     return { x: tx, y: ty };
@@ -1201,6 +1313,7 @@ export class World {
     this.updateCrates(dt);
     this.updateStrikes();
     this.updateOrbital(dt);
+    this.updateHazards(dt);
     for (let i = this.wrecks.length - 1; i >= 0; i--) {
       const w = this.wrecks[i];
       w.life -= dt;
@@ -1275,6 +1388,7 @@ export class World {
       if (this.weather === 'rain' || this.weather === 'storm') speed *= 0.88;
     }
     if (this.weather === 'blizzard') speed *= 0.75;
+    if (u.cls !== 'air') speed *= this.terrainSpeed(u);
     if (u.haste > 0) speed *= 1.5;
     let dx = gx - u.x, dy = gy - u.y;
     const dl = Math.hypot(dx, dy) || 1;
@@ -1327,7 +1441,7 @@ export class World {
     u.cool -= dt * (this.coreOwner() === u.fid ? 1.3 : 1);
     u.special -= dt;
     if (tgt && engage && u.cool <= 0 && Math.abs(angDiff(u.aim, aimWant)) < 0.4) {
-      u.cool = def.fireInterval * rand(0.85, 1.15);
+      u.cool = def.fireInterval * rand(0.85, 1.15) * this.heatFactor(u);
       this.shoot(u, tgt);
     }
     if ((def.key === 'titan' || def.key === 'robot') && tgt && dToT < range * 1.2) this.heavySpecials(u, tgt);
@@ -1520,7 +1634,7 @@ export class World {
         this.particles.ring(t.x, t.y, 2.4, 0x9ad8ff, 0.45);
         this.particles.flash(t.x, t.y, 1.6, 0x9ad8ff, 0.25);
         this.particles.sparks(t.x, t.y, 24, 0xcfe8ff, 360);
-        this.splashAt(t.x, t.y, 130, dmg, u.fid, true, 'emp', u);
+        this.splashAt(t.x, t.y, 130, dmg * (this.terrain === 'industrial' ? 1.3 : 1), u.fid, true, 'emp', u);
         for (const o of this.near(t.x, t.y, 150)) {
           if (o.fid === u.fid || o.def.key === 'strike') continue;
           o.cool = Math.max(o.cool, 1.4);

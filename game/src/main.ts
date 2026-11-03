@@ -179,7 +179,7 @@ async function main() {
   };
 
   world.hooks = {
-    feedKill: ({ killer, killerFid, victim }) => {
+    feedKill: ({ killer, killerFid, victim, cause }) => {
       game.noteKill(killerFid, victim.fid, victim.def.value);
       if (killer?.uid) {
         const p = game.players.map.get(killer.uid);
@@ -190,7 +190,10 @@ async function main() {
       if (!killer && world.orbitalActive) return; // the orbital beam announces itself
       const kf = world.factions[killerFid], vf = world.factions[victim.fid];
       const whom = victim.name ? `@${victim.name}` : vf.def.name;
-      if (!kf) return hud.pushFeed(`⚡ Lightning struck ${whom} [${victim.def.name}]`, vf.code, 0xb8d0ff);
+      if (!kf) {
+        const how = { lava: '🌋 Lava swallowed', pylon: '⚡ A power line fried', depot: '💥 A fuel depot blew up', lightning: '⚡ Lightning struck' }[cause ?? 'lightning'];
+        return hud.pushFeed(`${how} ${whom} [${victim.def.name}]`, vf.code, 0xb8d0ff);
+      }
       const who = killer?.name ? `@${killer.name}` : kf.def.name;
       hud.pushFeed(`${who} [${killer?.def.name ?? 'Fortress guns'}] ✖ ${whom} [${victim.def.name}]`, kf.code, kf.color);
     },

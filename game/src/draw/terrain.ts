@@ -1,5 +1,6 @@
 // Procedural terrain: a baked ground texture (noise + painted features on a 2D canvas)
 // plus a small animated layer (trees swaying, toxic pools with a shader, fires, sparkles).
+import { BARREL_SPOTS, type Island, LAVA, LAVA_HALF, PYLONS, WIRES, coast, getIslands, isWater, lavaDist } from '../core/terrainmap';
 import { CanvasSource, Container, Filter, GlProgram, Sprite, Texture } from 'pixi.js';
 import { H, RESERVED, W, type TerrainKey, rand } from '../core/config';
 import type { FxTextures } from './fxTextures';
@@ -380,6 +381,381 @@ function paintCity(): HTMLCanvasElement {
   return cv;
 }
 
+
+// ------------------------------------------------------------ expansion terrains
+function lumpy(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, n = 11, jitter = 0.25) {
+  ctx.beginPath();
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2;
+    const rr = r * (1 - jitter / 2 + Math.random() * jitter);
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.85);
+  }
+  ctx.closePath();
+}
+
+function mesa(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  // layered plateau: shadow, cliff ring, flat top with strata
+  ctx.fillStyle = 'rgba(40,20,5,0.35)';
+  lumpy(ctx, x + r * 0.25, y + r * 0.3, r, 13);
+  ctx.fill();
+  const layers = ['#7a4a26', '#9a6236', '#b97c48', '#cf9a63'];
+  layers.forEach((c, i) => {
+    ctx.fillStyle = c;
+    lumpy(ctx, x - i * 2, y - i * 3, r * (1 - i * 0.12), 13, 0.18);
+    ctx.fill();
+  });
+  ctx.strokeStyle = 'rgba(255,230,190,0.25)';
+  ctx.lineWidth = 1.5;
+  lumpy(ctx, x - 8, y - 10, r * 0.6, 13, 0.18);
+  ctx.stroke();
+}
+
+function solarArray(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(-36 + 5, -40 + i * 21 + 6, 72, 16);
+    const g = ctx.createLinearGradient(-36, 0, 36, 0);
+    g.addColorStop(0, '#1b3a6a');
+    g.addColorStop(0.5, '#2f5f9a');
+    g.addColorStop(1, '#15294a');
+    ctx.fillStyle = g;
+    ctx.fillRect(-36, -40 + i * 21, 72, 16);
+    ctx.strokeStyle = 'rgba(180,210,255,0.35)';
+    ctx.lineWidth = 0.8;
+    for (let k = 1; k < 6; k++) {
+      ctx.beginPath();
+      ctx.moveTo(-36 + k * 12, -40 + i * 21);
+      ctx.lineTo(-36 + k * 12, -24 + i * 21);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function paintDesert(): HTMLCanvasElement {
+  const cv = noiseGround('#9a7444', '#c39a60', '#e0bd82', 150, 41, 12);
+  const ctx = cv.getContext('2d')!;
+  // dune ripples: long sinuous light/shadow bands
+  for (let k = 0; k < 70; k++) {
+    const y0 = rand(-50, H + 50), amp = rand(10, 30), f = rand(120, 260), ph = rand(0, 6.28);
+    for (const [off, col] of [[0, 'rgba(255,235,190,0.22)'], [5, 'rgba(110,70,30,0.2)']] as const) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = rand(2, 5);
+      ctx.beginPath();
+      const x0 = rand(-100, W), len = rand(200, 600);
+      for (let x = x0; x < x0 + len; x += 12) ctx.lineTo(x, y0 + off + Math.sin(x / f + ph) * amp);
+      ctx.stroke();
+    }
+  }
+  for (let i = 0; i < 40; i++) blotch(ctx, rand(0, W), rand(0, H), rand(50, 140), `rgba(${rand(150, 200) | 0},${rand(100, 140) | 0},${rand(50, 80) | 0},0.18)`);
+  // dry wadi
+  winding(ctx, 540, 90, 'rgba(120,85,45,0.35)', 160, 0.9);
+  winding(ctx, 540, 40, 'rgba(90,60,30,0.3)', 160, 0.9);
+  clearBases(ctx, 'rgba(150,115,70,0.55)');
+  for (let i = 0; i < 6; i++) { const [x, y] = P.spot(80, true); mesa(ctx, x, y, rand(50, 85)); }
+  for (let i = 0; i < 22; i++) { const [x, y] = P.spot(20); P.rock(ctx, x, y, rand(8, 18), '#7a5a3a', '#c9a070'); }
+  solarArray(ctx, 860, 600, 0.2);
+  solarArray(ctx, 220, 1420, -0.3);
+  P.wreckMech(ctx, 300, 1010, 64);
+  P.wreckMech(ctx, 790, 1240, 50);
+  P.bunker(ctx, 200, 640, 70, '#a88a60');
+  P.bunker(ctx, 880, 1330, 70, '#a88a60');
+  P.battlefield(ctx, 'rgba(120,85,45,0.5)', '#b8a070');
+  P.vignette(ctx, 0.4);
+  return cv;
+}
+
+function paintVolcano(): HTMLCanvasElement {
+  const cv = noiseGround('#141012', '#261d1d', '#3b302c', 90, 51, 14);
+  const ctx = cv.getContext('2d')!;
+  // ash drifts
+  for (let i = 0; i < 50; i++) blotch(ctx, rand(0, W), rand(0, H), rand(40, 130), 'rgba(90,85,85,0.18)');
+  // glowing fissures in the basalt
+  for (let k = 0; k < 26; k++) {
+    let px = rand(0, W), py = rand(0, H), a = rand(0, 6.28);
+    ctx.lineCap = 'round';
+    for (const [w, c] of [[7, 'rgba(255,90,20,0.18)'], [2, 'rgba(255,170,60,0.75)']] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      let x = px, y = py, b = a;
+      ctx.moveTo(x, y);
+      for (let s = 0; s < 7; s++) {
+        b += rand(-0.6, 0.6);
+        x += Math.cos(b) * rand(12, 28);
+        y += Math.sin(b) * rand(12, 28);
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    px += 1;
+    a += 1;
+  }
+  // cooled lava banks along the rivers
+  for (const l of LAVA) {
+    for (const [w, c] of [[LAVA_HALF * 2 + 70, 'rgba(15,10,10,0.9)'], [LAVA_HALF * 2 + 30, 'rgba(70,25,10,0.9)']] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < l.length; i += 2) ctx.lineTo(l[i], l[i + 1]);
+      ctx.stroke();
+    }
+  }
+  clearBases(ctx, 'rgba(40,32,30,0.65)');
+  for (let i = 0; i < 26; i++) {
+    const [x, y] = P.spot(25);
+    if (lavaDist(x, y) < LAVA_HALF + 50) continue;
+    P.rock(ctx, x, y, rand(10, 24), '#2a2424', '#4d4442');
+  }
+  // vent craters
+  for (const [x, y] of VENTS) {
+    const g = ctx.createRadialGradient(x, y, 4, x, y, 46);
+    g.addColorStop(0, 'rgba(255,140,40,0.9)');
+    g.addColorStop(0.35, 'rgba(120,30,10,0.9)');
+    g.addColorStop(1, 'rgba(20,12,12,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, 46, 0, 6.28);
+    ctx.fill();
+  }
+  P.bunker(ctx, 220, 640, 66, '#3d3533');
+  P.bunker(ctx, 860, 1360, 66, '#3d3533');
+  P.battlefield(ctx, 'rgba(90,50,30,0.5)', '#5a4a40');
+  P.vignette(ctx, 0.6);
+  return cv;
+}
+const VENTS: [number, number][] = [[90, 1040], [990, 1000], [540, 1600], [400, 420]];
+
+function lavaMask(): Texture {
+  const cv = document.createElement('canvas');
+  cv.width = W;
+  cv.height = H;
+  const ctx = cv.getContext('2d')!;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (const l of LAVA) {
+    for (const [w, a] of [[LAVA_HALF * 2 + 14, 0.5], [LAVA_HALF * 2, 1]] as const) {
+      ctx.strokeStyle = `rgba(255,255,255,${a})`;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      for (let i = 0; i < l.length; i += 2) ctx.lineTo(l[i], l[i + 1]);
+      ctx.stroke();
+    }
+  }
+  return Texture.from(cv);
+}
+
+function palm(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.arc(x + r * 0.4, y + r * 0.5, r * 0.9, 0, 6.28);
+  ctx.fill();
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * 6.28 + rand(-0.2, 0.2);
+    ctx.strokeStyle = i % 2 ? '#3f7a2c' : '#5a9a38';
+    ctx.lineWidth = r * 0.28;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + Math.cos(a + 0.3) * r * 0.6, y + Math.sin(a + 0.3) * r * 0.6, x + Math.cos(a) * r, y + Math.sin(a) * r);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#6a4a2a';
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.16, 0, 6.28);
+  ctx.fill();
+}
+
+function paintSea(): HTMLCanvasElement {
+  const cv = noiseGround('#06263a', '#0b3a56', '#145a7c', 110, 61, 10);
+  const ctx = cv.getContext('2d')!;
+  const isl = getIslands();
+  const shape = (s: Island, grow: number) => {
+    ctx.beginPath();
+    for (let k = 0; k <= 48; k++) {
+      const a = (k / 48) * Math.PI * 2;
+      const r = coast(s, a) + grow;
+      ctx.lineTo(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r);
+    }
+    ctx.closePath();
+  };
+  // shallows, beach, grass
+  for (const s of isl) (ctx.fillStyle = 'rgba(60,170,190,0.35)'), shape(s, 40), ctx.fill();
+  for (const s of isl) (ctx.fillStyle = 'rgba(90,200,210,0.35)'), shape(s, 16), ctx.fill();
+  for (const s of isl) (ctx.fillStyle = '#d8c48e'), shape(s, 0), ctx.fill();
+  for (const s of isl) {
+    const g = ctx.createRadialGradient(s.x, s.y, 10, s.x, s.y, s.r);
+    g.addColorStop(0, '#4f7a3a');
+    g.addColorStop(0.8, '#5f8a42');
+    g.addColorStop(1, '#8a9a5a');
+    ctx.fillStyle = g;
+    shape(s, -14);
+    ctx.fill();
+    for (let i = 0; i < 40; i++) {
+      const a = rand(0, 6.28), d = Math.sqrt(Math.random()) * (s.r - 26);
+      blotch(ctx, s.x + Math.cos(a) * d, s.y + Math.sin(a) * d, rand(8, 22), 'rgba(40,80,30,0.35)');
+    }
+  }
+  // wave lines on open water
+  ctx.strokeStyle = 'rgba(200,240,255,0.12)';
+  ctx.lineWidth = 2;
+  for (let k = 0; k < 120; k++) {
+    const x = rand(0, W), y = rand(0, H);
+    if (!isWater(x, y)) continue;
+    ctx.beginPath();
+    ctx.arc(x, y, rand(10, 26), 3.6, 5.8);
+    ctx.stroke();
+  }
+  for (const s of isl) {
+    for (let i = 0; i < Math.round(s.r / 30); i++) {
+      const a = rand(0, 6.28), d = coast(s, a) - rand(20, 40);
+      const x = s.x + Math.cos(a) * d, y = s.y + Math.sin(a) * d;
+      if (!P.nearBase(x, y, 200)) palm(ctx, x, y, rand(14, 22));
+    }
+  }
+  // piers
+  for (const s of isl.slice(0, 6)) {
+    const a = Math.atan2(H / 2 - s.y, W / 2 - s.x) + 0.7;
+    ctx.save();
+    ctx.translate(s.x + Math.cos(a) * (s.r - 10), s.y + Math.sin(a) * (s.r - 10));
+    ctx.rotate(a);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(4, -6, 70, 14);
+    ctx.fillStyle = '#7a5a3a';
+    ctx.fillRect(0, -8, 70, 14);
+    ctx.strokeStyle = '#4a3420';
+    for (let x = 6; x < 70; x += 8) (ctx.beginPath(), ctx.moveTo(x, -8), ctx.lineTo(x, 6), ctx.stroke());
+    ctx.restore();
+  }
+  P.battlefield(ctx, 'rgba(150,130,90,0.5)', '#b8a878');
+  P.vignette(ctx, 0.45);
+  return cv;
+}
+
+function seaMask(): Texture {
+  const cv = document.createElement('canvas');
+  cv.width = W;
+  cv.height = H;
+  const ctx = cv.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'destination-out';
+  for (const s of getIslands()) {
+    ctx.beginPath();
+    for (let k = 0; k <= 48; k++) {
+      const a = (k / 48) * Math.PI * 2;
+      const r = coast(s, a) + 10;
+      ctx.lineTo(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r);
+    }
+    ctx.fill();
+  }
+  return Texture.from(cv);
+}
+
+function coolingTower(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.arc(x + r * 0.35, y + r * 0.4, r, 0, 6.28);
+  ctx.fill();
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.2, x, y, r);
+  g.addColorStop(0, '#9aa0a6');
+  g.addColorStop(1, '#4a4e54');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, 6.28);
+  ctx.fill();
+  ctx.fillStyle = '#16181b';
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.68, 0, 6.28);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function paintIndustrial(): HTMLCanvasElement {
+  const cv = noiseGround('#26282b', '#323539', '#43464a', 70, 71, 10);
+  const ctx = cv.getContext('2d')!;
+  // concrete slabs grid
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 2;
+  for (let x = 0; x < W; x += 90) (ctx.beginPath(), ctx.moveTo(x, 0), ctx.lineTo(x, H), ctx.stroke());
+  for (let y = 0; y < H; y += 90) (ctx.beginPath(), ctx.moveTo(0, y), ctx.lineTo(W, y), ctx.stroke());
+  for (let i = 0; i < 40; i++) blotch(ctx, rand(0, W), rand(0, H), rand(20, 70), 'rgba(10,10,10,0.3)'); // oil stains
+  // rail line
+  for (const x of [470, 610]) {
+    ctx.fillStyle = '#2a2622';
+    ctx.fillRect(x - 22, 0, 44, H);
+    ctx.fillStyle = '#4a3a2a';
+    for (let y = 0; y < H; y += 16) ctx.fillRect(x - 20, y, 40, 6);
+    ctx.fillStyle = '#8a9098';
+    ctx.fillRect(x - 12, 0, 3, H);
+    ctx.fillRect(x + 9, 0, 3, H);
+  }
+  // hazard-striped loading bays
+  for (const [x, y, w, h] of [[60, 820, 160, 110], [860, 820, 160, 110], [60, 1150, 160, 110], [860, 1150, 160, 110]]) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    for (let k = -h; k < w; k += 22) {
+      ctx.fillStyle = '#d8b02a';
+      ctx.beginPath();
+      ctx.moveTo(x + k, y);
+      ctx.lineTo(x + k + 11, y);
+      ctx.lineTo(x + k + 11 + h, y + h);
+      ctx.lineTo(x + k + h, y + h);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.fillStyle = 'rgba(30,30,30,0.85)';
+    ctx.fillRect(x + 8, y + 8, w - 16, h - 16);
+  }
+  clearBases(ctx, 'rgba(50,52,56,0.6)');
+  P.pipe(ctx, -20, 700, 420, 700);
+  P.pipe(ctx, 660, 1390, 1100, 1390);
+  P.pipe(ctx, 200, 1500, 200, 1100);
+  coolingTower(ctx, 860, 560, 60);
+  coolingTower(ctx, 220, 1480, 52);
+  // fuel depots (the live, explosive ones are tracked by the world)
+  for (const [x, y] of BARREL_SPOTS) {
+    blotch(ctx, x, y, 60, 'rgba(20,20,20,0.45)');
+    ctx.strokeStyle = 'rgba(216,176,42,0.8)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 8]);
+    ctx.strokeRect(x - 38, y - 38, 76, 76);
+    ctx.setLineDash([]);
+  }
+  // power lines
+  ctx.strokeStyle = 'rgba(20,20,20,0.8)';
+  ctx.lineWidth = 2;
+  for (const [a, b] of WIRES) {
+    const [x0, y0] = PYLONS[a], [x1, y1] = PYLONS[b];
+    for (const o of [-6, 6]) (ctx.beginPath(), ctx.moveTo(x0 + o, y0), ctx.lineTo(x1 + o, y1), ctx.stroke());
+  }
+  for (const [x, y] of PYLONS) {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x - 12, y - 6, 30, 30);
+    ctx.strokeStyle = '#6a7078';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x - 16, y - 16, 32, 32);
+    ctx.beginPath();
+    ctx.moveTo(x - 16, y - 16);
+    ctx.lineTo(x + 16, y + 16);
+    ctx.moveTo(x + 16, y - 16);
+    ctx.lineTo(x - 16, y + 16);
+    ctx.stroke();
+  }
+  for (let i = 0; i < 12; i++) { const [x, y] = P.spot(30); P.crate(ctx, x, y, rand(12, 20), '#4a5058'); }
+  P.battlefield(ctx, 'rgba(90,90,90,0.5)', '#7a7468');
+  P.vignette(ctx, 0.55);
+  return cv;
+}
+
 // ------------------------------------------------------------ toxic pool shader
 const VERT = `in vec2 aPosition;
 out vec2 vTextureCoord;
@@ -401,24 +777,45 @@ in vec2 vScreen;
 out vec4 finalColor;
 uniform sampler2D uTexture;
 uniform float uTime;
+uniform vec3 uDeep;
+uniform vec3 uLit;
+uniform vec3 uEdge;
+uniform float uScale;
+uniform vec2 uFlow;
 float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
 void main(){
-  vec2 uv = vScreen / 70.0;
+  vec2 uv = vScreen / uScale;
   float t = uTime;
-  float a = n(uv + vec2(t*0.25, t*0.1));
-  float b = n(uv*1.7 - vec2(t*0.15, t*0.3));
+  float a = n(uv + vec2(t*0.25, t*0.1) + uFlow*t);
+  float b = n(uv*1.7 - vec2(t*0.15, t*0.3) + uFlow*t*1.3);
   float caust = smoothstep(0.35, 0.0, abs(a-b));
   vec4 m = texture(uTexture, vTextureCoord);
-  vec3 deep = vec3(0.10, 0.35, 0.05);
-  vec3 lit  = vec3(0.55, 1.0, 0.15);
+  vec3 deep = uDeep;
+  vec3 lit  = uLit;
   float pulse = 0.85 + 0.15*sin(t*1.7 + vScreen.x*0.01);
   vec3 col = mix(deep, lit, caust*0.8 + a*0.2) * pulse;
   float edge = smoothstep(0.0, 0.5, m.a) - smoothstep(0.5, 1.0, m.a);
-  col += vec3(0.6,1.0,0.3) * edge * 0.6;
+  col += uEdge * edge * 0.6;
   finalColor = vec4(col, 1.0) * m.a * 0.92;
 }`;
+
+function liquidFilter(deep: number[], lit: number[], edge: number[], scale: number, flow: [number, number]) {
+  return new Filter({
+    glProgram: GlProgram.from({ vertex: VERT, fragment: FRAG, name: 'liquid' }),
+    resources: {
+      liquid: {
+        uTime: { value: 0, type: 'f32' },
+        uDeep: { value: new Float32Array(deep), type: 'vec3<f32>' },
+        uLit: { value: new Float32Array(lit), type: 'vec3<f32>' },
+        uEdge: { value: new Float32Array(edge), type: 'vec3<f32>' },
+        uScale: { value: scale, type: 'f32' },
+        uFlow: { value: new Float32Array(flow), type: 'vec2<f32>' },
+      },
+    },
+  });
+}
 
 function poolMask(): Texture {
   const cv = document.createElement('canvas');
@@ -484,7 +881,7 @@ export interface TerrainScene {
 }
 
 export function buildTerrain(key: TerrainKey, fx: FxTextures, particles: Particles): TerrainScene {
-  const painter = { jungle: paintJungle, ice: paintIce, swamp: paintSwamp, city: paintCity }[key];
+  const painter = { jungle: paintJungle, ice: paintIce, swamp: paintSwamp, city: paintCity, desert: paintDesert, volcano: paintVolcano, sea: paintSea, industrial: paintIndustrial }[key];
   const tex = hiTex(painter(), GS);
   const ground = new Sprite(tex);
   const under = new Container();
@@ -561,10 +958,7 @@ export function buildTerrain(key: TerrainKey, fx: FxTextures, particles: Particl
     const mask = poolMask();
     ownTextures.push(mask);
     const pools = new Sprite(mask);
-    const filter = new Filter({
-      glProgram: GlProgram.from({ vertex: VERT, fragment: FRAG, name: 'toxic-pool' }),
-      resources: { poolUniforms: { uTime: { value: 0, type: 'f32' } } },
-    });
+    const filter = liquidFilter([0.1, 0.35, 0.05], [0.55, 1.0, 0.15], [0.6, 1.0, 0.3], 70, [0, 0]);
     pools.filters = [filter];
     under.addChild(pools);
     const glow: Sprite[] = POOLS.map(([x, y, rx, ry]) => {
@@ -580,7 +974,7 @@ export function buildTerrain(key: TerrainKey, fx: FxTextures, particles: Particl
       return g;
     });
     updaters.push((dt, t) => {
-      filter.resources.poolUniforms.uniforms.uTime = t;
+      filter.resources.liquid.uniforms.uTime = t;
       glow.forEach((g, i) => (g.alpha = 0.14 + Math.sin(t * 1.5 + i) * 0.05));
       if (Math.random() < dt * 14) {
         const [x, y, rx, ry] = POOLS[(Math.random() * POOLS.length) | 0];
@@ -590,6 +984,97 @@ export function buildTerrain(key: TerrainKey, fx: FxTextures, particles: Particl
       if (Math.random() < dt * 3) {
         const [x, y] = POOLS[(Math.random() * POOLS.length) | 0];
         particles.mist(x + rand(-60, 60), y + rand(-30, 30), 0x6dff3a);
+      }
+    });
+  }
+
+
+  if (key === 'desert') {
+    const haze = new Sprite(fx.beam);
+    haze.anchor.set(0.5);
+    haze.width = 2600;
+    haze.height = 300;
+    haze.rotation = 0.15;
+    haze.tint = 0xffe0a0;
+    haze.alpha = 0.06;
+    haze.blendMode = 'add';
+    over.addChild(haze);
+    updaters.push((dt, t, wind) => {
+      haze.position.set(W / 2, ((t * 60) % (H + 400)) - 200);
+      if (Math.random() < dt * (6 + Math.abs(wind) * 20)) particles.mist(rand(-100, W), rand(0, H), 0xd8b47a);
+    });
+  }
+
+  if (key === 'volcano') {
+    const mask = lavaMask();
+    ownTextures.push(mask);
+    const lava = new Sprite(mask);
+    const filter = liquidFilter([0.55, 0.06, 0.0], [1.0, 0.75, 0.2], [1.0, 0.45, 0.1], 60, [0.35, 0.05]);
+    lava.filters = [filter];
+    under.addChild(lava);
+    const glows: Sprite[] = [];
+    for (const l of LAVA)
+      for (let i = 0; i < l.length; i += 8) {
+        const g = new Sprite(fx.glow);
+        g.anchor.set(0.5);
+        g.position.set(l[i], l[i + 1]);
+        g.width = 260;
+        g.height = 200;
+        g.tint = 0xff5a10;
+        g.blendMode = 'add';
+        g.alpha = 0.16;
+        over.addChild(g);
+        glows.push(g);
+      }
+    updaters.push((dt, t) => {
+      filter.resources.liquid.uniforms.uTime = t;
+      glows.forEach((g, i) => (g.alpha = 0.12 + Math.sin(t * 1.3 + i * 0.7) * 0.05));
+      if (Math.random() < dt * 22) {
+        const l = LAVA[(Math.random() * LAVA.length) | 0], i = ((Math.random() * (l.length / 2)) | 0) * 2;
+        particles.spawn(fx.glow, true, l[i] + rand(-30, 30), l[i + 1] + rand(-20, 20), rand(-20, 20), rand(-90, -40), rand(0.8, 1.6), 0.08, 0.02, 1, 0, 0xffa040);
+      }
+      if (Math.random() < dt * 5) {
+        const [x, y] = VENTS[(Math.random() * VENTS.length) | 0];
+        particles.smokePuff(x + rand(-10, 10), y + rand(-10, 10), 1.6, 0x2a2626, 4, 0.5);
+      }
+    });
+  }
+
+  if (key === 'sea') {
+    const mask = seaMask();
+    ownTextures.push(mask);
+    const sea = new Sprite(mask);
+    const filter = liquidFilter([0.02, 0.18, 0.3], [0.25, 0.65, 0.8], [0.7, 0.95, 1.0], 90, [0.08, 0.03]);
+    sea.filters = [filter];
+    sea.alpha = 0.55;
+    under.addChild(sea);
+    updaters.push((dt, t) => {
+      filter.resources.liquid.uniforms.uTime = t;
+      if (Math.random() < dt * 30) {
+        const x = rand(0, W), y = rand(0, H);
+        if (isWater(x, y)) particles.sparkle(x, y);
+      }
+    });
+  }
+
+  if (key === 'industrial') {
+    const lamps = PYLONS.map(([x, y], i) => {
+      const s = new Sprite(fx.glow);
+      s.anchor.set(0.5);
+      s.position.set(x, y);
+      s.width = s.height = 60;
+      s.tint = 0xff3020;
+      s.blendMode = 'add';
+      over.addChild(s);
+      return { s, ph: i * 0.8 };
+    });
+    updaters.push((dt, t) => {
+      lamps.forEach((l) => (l.s.alpha = Math.sin(t * 3 + l.ph) > 0.6 ? 0.8 : 0.1));
+      if (Math.random() < dt * 4) particles.smokePuff(860 + rand(-20, 20), 560 + rand(-20, 20), 2.2, 0xd0d4d8, 4, 0.4);
+      if (Math.random() < dt * 3) particles.smokePuff(220 + rand(-20, 20), 1480 + rand(-20, 20), 2, 0xd0d4d8, 4, 0.4);
+      if (Math.random() < dt * 2) {
+        const [x, y] = PYLONS[(Math.random() * PYLONS.length) | 0];
+        particles.sparks(x, y, 6, 0x9ad8ff, 140);
       }
     });
   }
