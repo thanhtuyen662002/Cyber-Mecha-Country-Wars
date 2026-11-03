@@ -9,11 +9,12 @@ import type { Particles } from '../fx/particles';
 import type { Sfx } from '../fx/sfx';
 import type { Game } from '../sim/game';
 import type { World } from '../sim/world';
+import type { Hud } from './hud';
 import { wipe } from '../sys/persist';
 import type { Watchdog } from '../sys/watchdog';
 
 interface Deps {
-  game: Game; world: World; sim: Simulator; live: LiveSource; queue: EventQueue; sfx: Sfx; particles: Particles; watchdog: Watchdog;
+  game: Game; world: World; hud: Hud; sim: Simulator; live: LiveSource; queue: EventQueue; sfx: Sfx; particles: Particles; watchdog: Watchdog;
   setBloom(on: boolean): void; bloomOn(): boolean; stats: () => { fps: number; quality: string };
 }
 
@@ -73,6 +74,7 @@ export class DevPanel {
       this.btn('Rate x2', () => (sim.rate = Math.min(40, sim.rate * 2))),
       this.btn('Rate ÷2', () => (sim.rate = Math.max(0.5, sim.rate / 2))),
     ]));
+    body.appendChild(this.group('Help', [this.btn(this.d.hud.guide.visible ? '📖 Unit guide: ON' : '📖 Unit guide (all 13 units)', () => this.d.hud.toggleGuide(), this.d.hud.guide.visible)]));
     body.appendChild(this.group('Viewer joins country', [sel, this.btn('Join', () => sim.join(this.code)), this.btn('Random join', () => sim.join())]));
     body.appendChild(this.group('Free actions', [
       this.btn('Chat', () => sim.chat()), this.btn('Follow', () => sim.follow()), this.btn('Share', () => sim.share()), this.btn('+200 likes', () => sim.likes(200)),

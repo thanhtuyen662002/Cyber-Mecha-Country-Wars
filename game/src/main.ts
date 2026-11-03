@@ -3,7 +3,7 @@
 import { Application, Container, type Filter, Rectangle, Sprite } from 'pixi.js';
 import { AdvancedBloomFilter, ShockwaveFilter } from 'pixi-filters';
 import { H, SIM_DT, type TerrainKey, W, type WeatherKey, lerp, rand } from './core/config';
-import { UNITS, type UnitKey, setTierMin } from './core/units';
+import { UNITS, type UnitKey, setTierMin, tierOf } from './core/units';
 import { makeFlags } from './draw/flags';
 import { makeFxTextures } from './draw/fxTextures';
 import { type TerrainScene, buildTerrain } from './draw/terrain';
@@ -64,7 +64,7 @@ async function main() {
   const particles = new Particles(fx, 3000);
   const sfx = new Sfx();
   const weather = new Weather(fx);
-  const hud = new Hud(flags);
+  const hud = new Hud(flags, art, fx);
   World.reserveSlots();
   const world = new World(app.renderer, art, fx, flags, particles);
   const queue = new EventQueue();
@@ -83,7 +83,7 @@ async function main() {
   screenFlash.blendMode = 'add';
   screenFlash.tint = 0xffe0b0;
   screenFlash.alpha = 0;
-  app.stage.addChild(view, weather.layer, screenFlash, hud.layer, hud.cine, hud.overlay);
+  app.stage.addChild(view, weather.layer, screenFlash, hud.layer, hud.cine, hud.overlay, hud.guide);
 
   const bloom = new AdvancedBloomFilter({ threshold: 0.62, bloomScale: 0.9, brightness: 1, blur: 6, quality: 4 });
   let shocks: ShockwaveFilter[] = [];
@@ -107,6 +107,7 @@ async function main() {
   };
   const setWeather = (k: WeatherKey) => {
     weather.set(k);
+    sfx.setAmbience(k);
     world.weather = k;
     world.wind = weather.windX;
     particles.windX = weather.windX;
@@ -149,13 +150,13 @@ async function main() {
       screenFlash.alpha = Math.max(screenFlash.alpha, 0.55 * power);
       applyFilters();
     },
-    cinematic: (u, tier, name, unitName, f) => {
+    cinematic: (u, tier, key, name, unitName, f) => {
       const dur = tier >= 6 ? 5.5 : tier >= 5 ? 3.4 : 2.4;
       // bigger gifts jump the queue; at most 6 queued. The camera follows the unit as it moves.
       const s: Shot = { at: u, tier, dur, t: 0 };
       if (shots.length < 6) shots.push(s);
       shots.sort((a, b) => b.tier - a.tier);
-      hud.cutIn(tier, unitName, name, f.code, f.color, Math.min(dur, 2.8));
+      hud.cutIn(tier, key, unitName, name, f.code, f.color, Math.min(dur, 2.8));
       if (tier >= 5) sfx.play('alarm');
     },
     sound: (k, v) => sfx.play(k, v),
@@ -175,6 +176,9 @@ async function main() {
   };
   game.onGift = (p, f, gift, coins, count, unit) => {
     if (coins * count >= 10 || count > 1) hud.pushFeed(`@${p.name} sent ${gift}${count > 1 ? ` x${count}` : ''} → ${unitLabel(unit)}`, f.code, f.color);
+    // mid-tier gifts get a side card with the unit's picture (tier 4+ already get the full cut-in)
+    const t = tierOf(coins * count);
+    if (t >= 2 && t <= 3) hud.deployCard(unit, p.name, f.code, f.color);
   };
   const unitLabel = (k: UnitKey) => UNITS[k].name.toUpperCase();
 
@@ -189,9 +193,10 @@ async function main() {
 
   const stats = { fps: 60, quality: 'high' as 'high' | 'reduced' };
   await game.start();
-  if (!clean) new DevPanel(document.getElementById('ui')!, { game, world, sim, live, queue, sfx, particles, watchdog, setBloom: (on) => ((bloomOn = on), applyFilters()), bloomOn: () => bloomOn, stats: () => stats });
+  if (!clean) new DevPanel(document.getElementById('ui')!, { game, world, hud, sim, live, queue, sfx, particles, watchdog, setBloom: (on) => ((bloomOn = on), applyFilters()), bloomOn: () => bloomOn, stats: () => stats });
   // first click anywhere enables audio (browsers block autoplay); OBS/Studio sources can use ?sound
   if (params.has('sound')) sfx.enable(true);
+  if (params.has('units')) hud.toggleGuide(true);
   window.addEventListener('pointerdown', () => !sfx.enabled && !params.has('mute') && sfx.enable(true), { once: true });
 
   // ------------------------------------------------------------ main loop: fixed 30 Hz sim, interpolated render

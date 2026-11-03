@@ -3,8 +3,11 @@
 import { Container, Graphics, Sprite, Text, type TextStyleOptions } from 'pixi.js';
 import { H, TERRAINS, W, WEATHERS, type WeatherKey, fmt, lerp } from '../core/config';
 import { COUNTRY_BY_CODE } from '../core/countries';
-import { TIER_LABEL, UNITS } from '../core/units';
+import { COUNTER, TIER_LABEL, TIER_MIN, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
 import type { FlagAtlas } from '../draw/flags';
+import type { FxTextures } from '../draw/fxTextures';
+import type { UnitArt } from '../draw/units';
+import { type UnitVisual, buildVisual } from '../sim/visuals';
 import type { LiveStatus } from '../net/live';
 import type { Game, RoundSummary } from '../sim/game';
 import { RANKS, rankOf } from '../sim/players';
@@ -16,6 +19,44 @@ const st = (size: number, fill: number | string = 0xffffff, extra: Partial<TextS
 const ease = (x: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 
 interface FeedLine { root: Container; flag: Sprite; text: Text; life: number }
+
+/** Approximate on-screen footprint (px) of each unit rig, used to frame portraits. */
+const FOOT: Record<UnitKey, number> = { infantry: 34, sniper: 44, at: 36, drone: 34, flamer: 34, tank: 62, aa: 62, spider: 104, heli: 120, robot: 92, bomber: 100, titan: 180, strike: 100 };
+const CLASS_NAME = { inf: 'infantry', vehicle: 'vehicles', mech: 'mechs', air: 'aircraft', fort: 'fortresses' } as const;
+
+/** A unit rig animated in place, for cards and the unit guide. */
+class Portrait {
+  readonly root = new Container();
+  private vis: UnitVisual;
+  private dist = 0;
+  private t = Math.random() * 10;
+  constructor(key: UnitKey, color: number, size: number, art: UnitArt, fx: FxTextures) {
+    const glow = new Sprite(fx.glow);
+    glow.anchor.set(0.5);
+    glow.width = glow.height = size * 1.5;
+    glow.tint = color;
+    glow.alpha = 0.35;
+    glow.blendMode = 'add';
+    this.vis = buildVisual(key, color, art, fx);
+    const holder = new Container();
+    holder.scale.set(size / FOOT[key]);
+    holder.addChild(this.vis.root);
+    this.root.addChild(glow, holder);
+  }
+  update(dt: number) {
+    this.t += dt;
+    this.dist += dt * 30;
+    this.vis.root.position.set(0, 0);
+    const a = -0.5 + Math.sin(this.t * 0.6) * 0.12;
+    this.vis.update({ angle: a, aim: a + Math.sin(this.t * 1.3) * 0.35, moving: 0.8, dist: this.dist, t: this.t, flash: 0 });
+  }
+  destroy() {
+    this.vis.shadow.destroy({ children: true });
+    this.root.destroy({ children: true });
+  }
+}
+
+interface Card { root: Container; portrait: Portrait; life: number; slot: number }
 
 export class Hud {
   readonly layer = new Container();
@@ -51,13 +92,18 @@ export class Hud {
   private cutFlag: Sprite;
   private cutT = 0;
   private cutDur = 0;
+  private cutPortrait: Portrait | null = null;
+  // deploy cards (tier 2-3 gifts) and the unit guide
+  private cards: Card[] = [];
+  readonly guide = new Container();
+  private guidePortraits: Portrait[] = [];
   // victory
   private vicBg: Graphics;
   private vicBox = new Container();
   private textTick = 0;
   private finalFlash = 0;
 
-  constructor(private flags: FlagAtlas) {
+  constructor(private flags: FlagAtlas, private art: UnitArt, private fx: FxTextures) {
     const top = new Graphics();
     top.rect(0, 0, W, 236).fill({ color: 0x04060b, alpha: 0.62 });
     top.rect(0, 234, W, 3).fill({ color: 0x38c8ff, alpha: 0.35 });
@@ -126,6 +172,7 @@ export class Hud {
     for (const t of [this.cutTitle, this.cutName, this.cutFlag]) t.anchor.set(0.5);
     this.cine.addChild(this.cutBand, this.cutTitle, this.cutName, this.cutFlag);
     this.cine.visible = false;
+    this.guide.visible = false;
 
     // victory overlay
     this.vicBg = new Graphics().rect(0, 0, W, H).fill({ color: 0x02040a, alpha: 0.78 });
@@ -158,26 +205,110 @@ export class Hud {
   }
 
   // ------------------------------------------------------------ cinematic banner
-  cutIn(tier: number, unitName: string, who: string, code: string, color: number, dur: number) {
+  cutIn(tier: number, key: UnitKey, unitName: string, who: string, code: string, color: number, dur: number) {
     this.cutT = 0;
     this.cutDur = dur;
-    const y0 = tier >= 5 ? 760 : 820;
-    const h = tier >= 5 ? 340 : 230;
+    const y0 = tier >= 5 ? 740 : 800;
+    const h = tier >= 5 ? 380 : 280;
     this.cutBand.clear();
-    this.cutBand.poly([0, y0 + 60, W, y0, W, y0 + h, 0, y0 + h + 60]).fill({ color: 0x000000, alpha: 0.72 });
+    this.cutBand.poly([0, y0 + 60, W, y0, W, y0 + h, 0, y0 + h + 60]).fill({ color: 0x000000, alpha: 0.75 });
     this.cutBand.poly([0, y0 + 52, W, y0 - 8, W, y0 + 4, 0, y0 + 64]).fill(color);
     this.cutBand.poly([0, y0 + h + 52, W, y0 + h - 8, W, y0 + h + 4, 0, y0 + h + 64]).fill(color);
+    // the unit itself, big, on the left of the banner
+    this.cutPortrait?.destroy();
+    this.cutPortrait = new Portrait(key === 'strike' ? 'bomber' : key, color, tier >= 5 ? 330 : 250, this.art, this.fx);
+    this.cutPortrait.root.y = y0 + h / 2 + 30;
+    this.cine.addChildAt(this.cutPortrait.root, 1);
     this.cutTitle.text = unitName.toUpperCase();
-    this.cutTitle.style.fontSize = tier >= 5 ? 92 : 70;
+    this.cutTitle.style.fontSize = tier >= 5 ? 86 : 66;
     this.cutTitle.style.fill = tier >= 6 ? 0xffd34d : color;
+    this.cutTitle.scale.set(Math.min(1, 600 / this.cutTitle.width));
     this.cutName.text = `@${who} called it in!`;
-    this.cutName.style.fontSize = tier >= 5 ? 46 : 36;
+    this.cutName.style.fontSize = tier >= 5 ? 40 : 32;
+    this.cutName.scale.set(Math.min(1, 520 / this.cutName.width));
     this.cutFlag.texture = this.flags.get(code);
-    this.cutFlag.scale.set(tier >= 5 ? 1.1 : 0.8);
-    this.cutTitle.y = y0 + h * 0.42 + 20;
-    this.cutName.y = y0 + h * 0.78 + 20;
+    this.cutFlag.scale.set(tier >= 5 ? 0.9 : 0.7);
+    this.cutTitle.y = y0 + h * 0.42 + 24;
+    this.cutName.y = y0 + h * 0.74 + 24;
     this.cutFlag.y = this.cutName.y;
     this.cine.visible = true;
+  }
+
+  /** Small slide-in card with the unit's picture for mid-tier gifts. */
+  deployCard(key: UnitKey, who: string, code: string, color: number) {
+    if (this.cards.length >= 3) this.dropCard(this.cards[0]);
+    const used = new Set(this.cards.map((c) => c.slot));
+    const slot = [0, 1, 2].find((i) => !used.has(i)) ?? 0;
+    const root = new Container();
+    const bg = new Graphics();
+    bg.roundRect(0, 0, 440, 132, 18).fill({ color: 0x05070c, alpha: 0.82 }).stroke({ width: 3, color, alpha: 0.9 });
+    bg.roundRect(10, 10, 112, 112, 12).fill({ color: 0x111827, alpha: 0.9 });
+    root.addChild(bg);
+    const portrait = new Portrait(key, color, 112, this.art, this.fx);
+    portrait.root.position.set(66, 66);
+    root.addChild(portrait.root);
+    const name = new Text({ text: UNITS[key].name.toUpperCase(), style: st(30, color) });
+    name.position.set(138, 16);
+    name.scale.set(Math.min(1, 290 / name.width));
+    const flag = new Sprite(this.flags.get(code));
+    flag.scale.set(0.38);
+    flag.position.set(138, 66);
+    const by = new Text({ text: `@${who}`, style: st(24, 0xffffff) });
+    by.position.set(184, 64);
+    by.scale.set(Math.min(1, 240 / by.width));
+    const tag = new Text({ text: `TIER ${UNITS[key].tier} · deployed`, style: st(18, 0x9fb4d8) });
+    tag.position.set(138, 100);
+    root.addChild(name, flag, by, tag);
+    root.position.set(W + 20, 520 + slot * 148);
+    this.layer.addChild(root);
+    this.cards.push({ root, portrait, life: 3.2, slot });
+  }
+
+  private dropCard(c: Card) {
+    c.portrait.destroy();
+    c.root.destroy({ children: true });
+    this.cards.splice(this.cards.indexOf(c), 1);
+  }
+
+  /** Full-screen guide of all 13 units with their gift tier and what they counter. */
+  toggleGuide(show = !this.guide.visible) {
+    this.guide.visible = show;
+    for (const p of this.guidePortraits) p.destroy();
+    this.guidePortraits = [];
+    this.guide.removeChildren().forEach((c) => c.destroy({ children: true }));
+    if (!show) return;
+    const bg = new Graphics().rect(0, 0, W, H).fill({ color: 0x03050a, alpha: 0.94 });
+    this.guide.addChild(bg);
+    const title = new Text({ text: 'UNIT GUIDE', style: st(60, 0xffd34d, { letterSpacing: 4 }) });
+    title.anchor.set(0.5, 0);
+    title.position.set(W / 2, 40);
+    this.guide.addChild(title);
+    const cols = 3, cw = W / cols, ch = 350, top = 140;
+    const keys = UNIT_KEYS;
+    keys.forEach((k, i) => {
+      const d = UNITS[k];
+      const cx = (i % cols) * cw + cw / 2, cy = top + Math.floor(i / cols) * ch;
+      const box = new Graphics().roundRect(cx - cw / 2 + 10, cy, cw - 20, ch - 16, 16).fill({ color: 0x0c1220, alpha: 1 }).stroke({ width: 2, color: 0x23324d });
+      this.guide.addChild(box);
+      const p = new Portrait(k === 'strike' ? 'bomber' : k, 0x38c8ff, k === 'titan' ? 165 : 150, this.art, this.fx);
+      if (k === 'strike') p.root.children[1].tint = 0xffd34d;
+      p.root.position.set(cx, cy + 105);
+      this.guide.addChild(p.root);
+      this.guidePortraits.push(p);
+      const name = new Text({ text: d.name.toUpperCase(), style: st(26, 0xffffff) });
+      name.anchor.set(0.5, 0);
+      name.position.set(cx, cy + 205);
+      name.scale.set(Math.min(1, (cw - 40) / name.width));
+      const how = d.tier === 0 ? { infantry: 'CHAT', sniper: 'FOLLOW', at: 'SHARE' }[k as 'infantry'] : `${TIER_MIN[d.tier].toLocaleString('en-US')}+ COINS`;
+      const tier = new Text({ text: `${how}${d.cmds[0] && d.tier > 0 && d.tier !== 3 && d.tier !== 5 && d.tier !== 6 ? ' · ' + d.cmds[0] : ''}`, style: st(20, 0xffd34d) });
+      tier.anchor.set(0.5, 0);
+      tier.position.set(cx, cy + 242);
+      const strong = (Object.entries(COUNTER[d.weapon]) as [keyof typeof CLASS_NAME, number][]).filter(([, v]) => v >= 1.4).map(([c]) => CLASS_NAME[c]);
+      const vs = new Text({ text: strong.length ? `Strong vs ${strong.join(', ')}` : 'All-rounder', style: st(18, 0x9fb4d8, { wordWrap: true, wordWrapWidth: cw - 40, align: 'center' }) });
+      vs.anchor.set(0.5, 0);
+      vs.position.set(cx, cy + 276);
+      this.guide.addChild(name, tier, vs);
+    });
   }
 
   // ------------------------------------------------------------ victory
@@ -224,12 +355,25 @@ export class Hud {
       const p = this.cutT;
       const slide = ease((p - 0.05) * 4);
       const out = ease((p - (this.cutDur - 0.35)) * 3);
-      this.cutTitle.x = lerp(-600, W / 2, slide) + out * (W + 600);
-      this.cutName.x = lerp(W + 600, W / 2 + 40, slide) - out * (W + 600);
+      this.cutTitle.x = lerp(-600, W / 2 + 110, slide) + out * (W + 600);
+      this.cutName.x = lerp(W + 600, W / 2 + 150, slide) - out * (W + 600);
       this.cutFlag.x = this.cutName.x - this.cutName.width / 2 - 60;
       this.cutBand.alpha = Math.min(1, p * 6) * (1 - out);
+      if (this.cutPortrait) {
+        this.cutPortrait.root.x = lerp(-300, 200, ease((p - 0.1) * 3.5)) - out * 700;
+        this.cutPortrait.root.alpha = 1 - out;
+        this.cutPortrait.update(dt);
+      }
       if (p > this.cutDur) this.cine.visible = false;
     }
+    for (const c of [...this.cards]) {
+      c.life -= dt;
+      const inT = ease((3.2 - c.life) * 4), outT = ease((0.4 - c.life) * 3);
+      c.root.x = lerp(W + 20, W - 460, inT) + outT * 480;
+      c.portrait.update(dt);
+      if (c.life <= 0) this.dropCard(c);
+    }
+    if (this.guide.visible) for (const p of this.guidePortraits) p.update(dt);
     for (const l of this.feed) {
       l.life -= dt;
       l.root.alpha = Math.max(0, Math.min(1, l.life));

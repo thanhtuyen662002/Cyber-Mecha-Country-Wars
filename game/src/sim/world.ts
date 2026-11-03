@@ -120,8 +120,8 @@ export interface WorldHooks {
   shake(a: number): void;
   bigBoom(x: number, y: number, power: number): void;
   hitStop(s: number): void;
-  cinematic(u: { x: number; y: number }, tier: number, name: string, unitName: string, f: Faction): void;
-  sound(kind: 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm', vol?: number): void;
+  cinematic(u: { x: number; y: number }, tier: number, key: UnitKey, name: string, unitName: string, f: Faction): void;
+  sound(kind: 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm' | 'flak' | 'sniper' | 'flame' | 'drop', vol?: number): void;
 }
 
 const CAPTURE_DEFS: { kind: CaptureKind; name: string; x: number; y: number }[] = [
@@ -582,7 +582,7 @@ export class World {
     if (def.tier >= 3) this.particles.sparks(x, y, 20, f.color, 300);
     if (def.tier >= 4) this.stampDecal(this.fx.scorch, x, y, 1.2, 0.5);
     this.units.push(u);
-    if (def.tier >= 4) this.hooks.cinematic(u, def.tier, name || f.def.name, def.name, f);
+    if (def.tier >= 4) this.hooks.cinematic(u, def.tier, def.key, name || f.def.name, def.name, f);
     if (key === 'titan') this.hooks.sound('alarm');
     return u;
   }
@@ -631,7 +631,7 @@ export class World {
     u.tag = this.takeTag(`☢ @${name || f.def.name}`.replace('☢ ', ''), 30, 0xffe27a);
     u.tagUntil = Infinity;
     this.units.push(u);
-    this.hooks.cinematic(tgt, 6, name || f.def.name, def.name, f);
+    this.hooks.cinematic(tgt, 6, 'strike', name || f.def.name, def.name, f);
     this.hooks.sound('alarm', 1);
   }
 
@@ -682,6 +682,7 @@ export class World {
           c.chute.visible = false;
           c.view.x = c.x;
           this.particles.ring(c.x, c.y, 1.4, 0xffffff, 0.4);
+          this.hooks.sound('drop', 0.8);
           // reparent to the ground layer once landed
           this.ground.addChild(c.view);
         }
@@ -1286,7 +1287,7 @@ export class World {
         this.beam(m.x, m.y, t.x, t.y, 3, 0xfff2c0, 0.12);
         this.particles.sparks(t.x, t.y, 4, 0xffffff, 200);
         this.damage(t, dmg, 'sniper', u, u.fid);
-        this.hooks.sound('cannon', 0.35);
+        this.hooks.sound('sniper', 0.5);
         break;
       }
       case 'atRocket': {
@@ -1304,6 +1305,7 @@ export class World {
           this.particles.spawn(this.fx.flame, true, m.x, m.y, Math.cos(a) * v, Math.sin(a) * v, 0.32, 0.25, 0.9, 1, 0, 0xffe08a, { c1: 0xff3000, drag: 2, rot: a + Math.PI / 2 });
         }
         this.damage(t, dmg * wet, 'flame', u, u.fid);
+        this.hooks.sound('flame', 0.45);
         if (Math.random() < 0.05) this.stampDecal(this.fx.scorch, t.x, t.y, 0.4, 0.5);
         break;
       }
@@ -1321,7 +1323,7 @@ export class World {
         const m = this.muzzle(u, 24, 11 * side);
         this.particles.muzzle(m.x, m.y, u.aim, 0.3, 0xfff0a0);
         this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, t.cls === 'air' ? 26 : 0, 0xfff0a0, 'flak', 16);
-        this.hooks.sound('gun', 0.3);
+        this.hooks.sound('flak', 0.35);
         break;
       }
       case 'laser': {

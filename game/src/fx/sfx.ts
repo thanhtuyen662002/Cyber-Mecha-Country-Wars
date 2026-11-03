@@ -1,6 +1,10 @@
-// Tiny synthesized SFX (Web Audio) so the demo has sound without any audio files.
-// The real game will use Howler.js + royalty-free/AI samples; this is just for feel.
-type Kind = 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm';
+// Synthesized sound design (Web Audio), no audio files needed.
+// Every sound is layered like a real recording: transient crack + body + low-end sub + tail,
+// through a shared distortion stage and a generated room/outdoor reverb, then a compressor and
+// limiter so dozens of explosions never clip. Weather has its own looping ambience beds
+// (rain, storm, blizzard wind, fog drone, gusts) that cross-fade when the weather changes.
+type Kind = 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm' | 'flak' | 'sniper' | 'flame' | 'drop';
+export type Ambience = 'clear' | 'rain' | 'storm' | 'blizzard' | 'fog' | 'wind';
 
 // D minor battle loop, 8 bars: Dm Bb F C | Dm Bb Gm A  (bass root, pad triad as MIDI notes)
 const PROG: [number, number[]][] = [
@@ -13,7 +17,12 @@ const midi = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 export class Sfx {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
-  private noise!: AudioBuffer;
+  private sfxBus!: GainNode;
+  private reverbSend!: GainNode;
+  private drive!: WaveShaperNode;
+  private noise!: AudioBuffer; // white
+  private pink!: AudioBuffer;
+  private brown!: AudioBuffer;
   private voices = 0;
   private last: Partial<Record<Kind, number>> = {};
   enabled = false;
@@ -22,28 +31,104 @@ export class Sfx {
   private step = 0;
   private nextTime = 0;
   private timer: number | null = null;
+  private amb: { key: Ambience; nodes: AudioScheduledSourceNode[]; gain: GainNode; tick: number | null } | null = null;
+  private wantAmb: Ambience = 'clear';
   /** 0 = calm (pad + bass), 1 = all-out war (drums, arps, taiko hits). Set by the game. */
   intensity = 0.3;
   private readonly bpm = 132;
 
   enable(on: boolean) {
     this.enabled = on;
-    if (on && !this.ctx) {
-      this.ctx = new AudioContext();
-      this.master = this.ctx.createGain();
-      this.master.gain.value = 0.5;
-      const comp = this.ctx.createDynamicsCompressor();
-      this.master.connect(comp).connect(this.ctx.destination);
-      const len = this.ctx.sampleRate * 2;
-      this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-      const d = this.noise.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = 0.32;
-      this.musicGain.connect(this.master);
-    }
+    if (on && !this.ctx) this.build();
     if (on) this.ctx?.resume();
     this.setMusic(on);
+    if (this.ctx) this.master.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.05);
+    if (on) this.setAmbience(this.wantAmb, true);
+  }
+
+  private build() {
+    const c = (this.ctx = new AudioContext());
+    // master: compressor -> soft limiter -> out
+    this.master = c.createGain();
+    this.master.gain.value = 0.8;
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 12;
+    comp.ratio.value = 5;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.25;
+    const limit = c.createDynamicsCompressor();
+    limit.threshold.value = -3;
+    limit.ratio.value = 20;
+    limit.attack.value = 0.001;
+    limit.release.value = 0.1;
+    this.master.connect(comp).connect(limit).connect(c.destination);
+    // sfx bus with a reverb send (outdoor battlefield: long, dark tail)
+    this.sfxBus = c.createGain();
+    this.sfxBus.connect(this.master);
+    const verb = c.createConvolver();
+    verb.buffer = this.impulse(3.2, 2.6);
+    const verbLp = c.createBiquadFilter();
+    verbLp.type = 'lowpass';
+    verbLp.frequency.value = 2600;
+    const verbOut = c.createGain();
+    verbOut.gain.value = 0.55;
+    this.reverbSend = c.createGain();
+    this.reverbSend.connect(verb).connect(verbLp).connect(verbOut).connect(this.master);
+    // shared drive stage for explosions (tape-style saturation)
+    this.drive = c.createWaveShaper();
+    this.drive.curve = this.satCurve(3.5);
+    this.drive.oversample = '2x';
+    const driveOut = c.createGain();
+    driveOut.gain.value = 0.7;
+    this.drive.connect(driveOut);
+    driveOut.connect(this.sfxBus);
+    driveOut.connect(this.reverbSend);
+    // noise colours
+    const len = c.sampleRate * 4;
+    this.noise = c.createBuffer(1, len, c.sampleRate);
+    this.pink = c.createBuffer(1, len, c.sampleRate);
+    this.brown = c.createBuffer(1, len, c.sampleRate);
+    const w = this.noise.getChannelData(0), p = this.pink.getChannelData(0), b = this.brown.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0, br = 0;
+    for (let i = 0; i < len; i++) {
+      const x = Math.random() * 2 - 1;
+      w[i] = x;
+      b0 = 0.99886 * b0 + x * 0.0555179; b1 = 0.99332 * b1 + x * 0.0750759; b2 = 0.969 * b2 + x * 0.153852;
+      b3 = 0.8665 * b3 + x * 0.3104856; b4 = 0.55 * b4 + x * 0.5329522; b5 = -0.7616 * b5 - x * 0.016898;
+      p[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + x * 0.5362) * 0.11;
+      b6 = x * 0.115926;
+      br = (br + 0.02 * x) / 1.02;
+      b[i] = br * 3.5;
+    }
+    this.musicGain = c.createGain();
+    this.musicGain.gain.value = 0.22;
+    this.musicGain.connect(this.master);
+  }
+
+  private impulse(sec: number, decay: number) {
+    const c = this.ctx!;
+    const n = Math.floor(c.sampleRate * sec);
+    const buf = c.createBuffer(2, n, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < n; i++) {
+        const t = i / n;
+        // early reflections (sparse) then a dense decaying tail
+        const early = i < c.sampleRate * 0.08 && Math.random() < 0.02 ? 1 : 0;
+        d[i] = ((Math.random() * 2 - 1) * Math.pow(1 - t, decay) + early * (Math.random() - 0.5)) * 0.6;
+      }
+    }
+    return buf;
+  }
+
+  private satCurve(k: number) {
+    const n = 2048, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.tanh(k * x) / Math.tanh(k);
+    }
+    return curve;
   }
 
   // ---------------------------------------------------------------- music
@@ -160,55 +245,270 @@ export class Sfx {
     }
   }
 
+  // ---------------------------------------------------------------- one-shot SFX
   play(kind: Kind, vol = 1) {
     if (!this.enabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const minGap: Record<Kind, number> = { gun: 0.05, cannon: 0.08, laser: 0.06, rocket: 0.08, boom: 0.06, bigboom: 0.2, thunder: 0.5, alarm: 1 };
-    if ((this.last[kind] ?? -1) > now - minGap[kind]) return; // rate-limit spam
-    if (this.voices >= 16) return; // voice cap (PLAN.md budget)
-    this.last[kind] = now;
     const c = this.ctx;
-    const out = c.createGain();
-    out.connect(this.master);
+    const now = c.currentTime + 0.005;
+    const minGap: Record<Kind, number> = { gun: 0.045, flak: 0.05, sniper: 0.15, flame: 0.12, cannon: 0.07, laser: 0.05, rocket: 0.07, boom: 0.05, bigboom: 0.18, thunder: 0.6, alarm: 1.5, drop: 0.2 };
+    if ((this.last[kind] ?? -1) > now - minGap[kind]) return; // rate-limit spam
+    const big = kind === 'bigboom' || kind === 'thunder' || kind === 'alarm';
+    if (this.voices >= 16 && !big) return; // voice cap (PLAN.md budget); big moments always play
+    this.last[kind] = now;
     this.voices++;
-    const done = (t: number) => setTimeout(() => (this.voices--, out.disconnect()), t * 1000 + 50);
+    const out = c.createGain();
+    out.gain.value = vol;
+    out.connect(this.sfxBus);
+    const send = c.createGain();
+    send.gain.value = 0;
+    out.connect(send).connect(this.reverbSend);
+    const wet = (v: number) => (send.gain.value = v);
+    let end = 0.2;
+    const done = () => setTimeout(() => {
+      this.voices--;
+      out.disconnect();
+      send.disconnect();
+    }, (end + 0.3) * 1000);
 
-    const noise = (dur: number, type: BiquadFilterType, freq: number, gain: number, decay: number) => {
+    /** filtered noise burst with an attack/decay envelope and optional filter sweep */
+    const noise = (buf: AudioBuffer, t: number, type: BiquadFilterType, f0: number, f1: number, gain: number, attack: number, decay: number, dest: AudioNode = out, q = 0.8, rate = 1) => {
       const src = c.createBufferSource();
-      src.buffer = this.noise;
-      src.playbackRate.value = 0.5 + Math.random();
+      src.buffer = buf;
+      src.playbackRate.value = rate * (0.9 + Math.random() * 0.2);
+      const f = c.createBiquadFilter();
+      f.type = type;
+      f.Q.value = q;
+      f.frequency.setValueAtTime(f0, t);
+      f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + attack + decay);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(gain, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+      src.connect(f).connect(g).connect(dest);
+      src.start(t, Math.random() * 3);
+      src.stop(t + attack + decay + 0.05);
+      end = Math.max(end, t - now + attack + decay);
+    };
+    const tone = (type: OscillatorType, t: number, f0: number, f1: number, gain: number, attack: number, decay: number, dest: AudioNode = out) => {
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(Math.max(10, f1), t + attack + decay);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(gain, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+      o.connect(g).connect(dest);
+      o.start(t);
+      o.stop(t + attack + decay + 0.05);
+      end = Math.max(end, t - now + attack + decay);
+    };
+    /** random crackle: dozens of tiny clicks (debris, embers, rain on metal) */
+    const crackle = (t: number, dur: number, n: number, gain: number, freq = 3000) => {
+      for (let i = 0; i < n; i++) {
+        const at = t + Math.pow(Math.random(), 1.6) * dur;
+        noise(this.noise, at, 'bandpass', freq * (0.5 + Math.random()), freq, gain * (0.3 + Math.random() * 0.7) * (1 - (at - t) / dur), 0.001, 0.01 + Math.random() * 0.03, out, 1.5);
+      }
+    };
+    const r = () => 0.92 + Math.random() * 0.16; // pitch variation so repeats never sound identical
+
+    switch (kind) {
+      case 'gun': // rifle: supersonic crack + muzzle body + short slap off the ground
+        noise(this.noise, now, 'highpass', 2500 * r(), 1800, 0.55, 0.001, 0.035);
+        noise(this.pink, now, 'bandpass', 1100 * r(), 500, 0.5, 0.001, 0.09, out, 1.2);
+        tone('sine', now, 180 * r(), 60, 0.25, 0.001, 0.06);
+        wet(0.35);
+        break;
+      case 'flak': // autocannon: heavier pop with a metallic ring
+        noise(this.noise, now, 'highpass', 1800, 900, 0.6, 0.001, 0.05);
+        noise(this.pink, now, 'bandpass', 600 * r(), 250, 0.7, 0.001, 0.16, out, 1.5);
+        tone('triangle', now, 140 * r(), 50, 0.45, 0.001, 0.12);
+        tone('sine', now + 0.002, 2200 * r(), 1900, 0.04, 0.001, 0.08);
+        wet(0.4);
+        break;
+      case 'sniper': // big-bore crack + long echo down the valley
+        noise(this.noise, now, 'highpass', 3500, 2000, 0.9, 0.001, 0.04);
+        noise(this.pink, now, 'bandpass', 800, 200, 0.9, 0.001, 0.25, out, 1);
+        tone('sine', now, 120, 35, 0.5, 0.001, 0.2);
+        wet(0.9);
+        break;
+      case 'flame': // roaring gas jet
+        noise(this.brown, now, 'lowpass', 900, 500, 0.6, 0.04, 0.35, out, 0.7, 1.4);
+        noise(this.pink, now, 'bandpass', 2400, 1500, 0.15, 0.03, 0.3, out, 0.6);
+        crackle(now, 0.35, 6, 0.1, 2500);
+        wet(0.2);
+        break;
+      case 'cannon': // tank gun: blast wave, chest thump, rolling tail
+        noise(this.noise, now, 'highpass', 1500, 700, 0.9, 0.001, 0.06);
+        noise(this.brown, now, 'lowpass', 1800, 180, 1.4, 0.003, 0.7, this.drive, 0.7);
+        tone('sine', now, 95 * r(), 32, 1.0, 0.002, 0.45, this.drive);
+        wet(0.8);
+        break;
+      case 'laser': // charged beam: two detuned sweeps + sizzle
+        tone('sawtooth', now, 2400 * r(), 420, 0.1, 0.002, 0.13);
+        tone('square', now, 1210 * r(), 300, 0.05, 0.002, 0.11);
+        noise(this.noise, now, 'bandpass', 6000, 3000, 0.12, 0.002, 0.1, out, 3);
+        wet(0.3);
+        break;
+      case 'rocket': // ignition pop + whoosh that rises then fades as it flies away
+        noise(this.noise, now, 'highpass', 2000, 1200, 0.4, 0.001, 0.04);
+        noise(this.pink, now, 'bandpass', 500, 2200, 0.7, 0.05, 0.55, out, 1.3);
+        noise(this.brown, now, 'lowpass', 600, 200, 0.5, 0.02, 0.6);
+        wet(0.5);
+        break;
+      case 'boom': { // explosion: crack -> distorted fireball body -> sub -> debris rain -> tail
+        const k = r();
+        noise(this.noise, now, 'highpass', 2600, 1200, 1.0, 0.001, 0.05);
+        noise(this.brown, now, 'lowpass', 2400 * k, 140, 1.8, 0.004, 1.3, this.drive, 0.6);
+        noise(this.pink, now + 0.01, 'lowpass', 900, 120, 0.8, 0.02, 1.6);
+        tone('sine', now, 75 * k, 26, 1.3, 0.003, 0.9, this.drive);
+        crackle(now + 0.08, 1.1, 22, 0.35, 2600);
+        wet(0.9);
+        break;
+      }
+      case 'bigboom': { // titan death / fortress / strike: shockwave, long roll, secondary blasts
+        noise(this.noise, now, 'highpass', 3000, 900, 1.2, 0.001, 0.09);
+        noise(this.brown, now, 'lowpass', 2000, 90, 2.4, 0.005, 3.2, this.drive, 0.5);
+        noise(this.brown, now + 0.15, 'lowpass', 260, 60, 1.6, 0.3, 4.5, out, 0.6, 0.6);
+        tone('sine', now, 60, 16, 1.8, 0.004, 2.6, this.drive);
+        tone('sine', now + 0.05, 38, 18, 1.0, 0.05, 3.2);
+        for (let i = 0; i < 4; i++) {
+          const t = now + 0.35 + i * (0.25 + Math.random() * 0.35);
+          noise(this.brown, t, 'lowpass', 1400, 150, 0.9, 0.003, 0.8, this.drive, 0.7);
+          tone('sine', t, 85, 30, 0.6, 0.003, 0.5, this.drive);
+        }
+        crackle(now + 0.2, 3, 60, 0.4, 2200);
+        wet(1.2);
+        break;
+      }
+      case 'thunder': { // close strike: tearing crack, then a long rumble that rolls in gusts
+        const crack = now;
+        for (let i = 0; i < 5; i++) noise(this.noise, crack + i * 0.025 + Math.random() * 0.02, 'highpass', 3500, 1500, 0.9 - i * 0.12, 0.001, 0.07);
+        noise(this.pink, crack, 'bandpass', 1800, 300, 0.9, 0.002, 0.6, out, 0.7);
+        let t = crack + 0.15;
+        for (let i = 0; i < 6; i++) {
+          const len = 0.8 + Math.random() * 1.4;
+          noise(this.brown, t, 'lowpass', 500 - i * 50, 80, 1.6 - i * 0.18, 0.12 + Math.random() * 0.2, len, this.drive, 0.6, 0.7);
+          t += len * (0.35 + Math.random() * 0.3);
+        }
+        tone('sine', crack + 0.05, 50, 22, 0.9, 0.1, 3);
+        wet(1.3);
+        break;
+      }
+      case 'alarm': // military klaxon, two pulses
+        for (let i = 0; i < 2; i++) {
+          const t = now + i * 0.55;
+          tone('sawtooth', t, 520, 700, 0.12, 0.02, 0.45);
+          tone('sawtooth', t, 523, 703, 0.08, 0.02, 0.45);
+        }
+        wet(0.6);
+        break;
+      case 'drop': // parachute crate landing: thud + rattle
+        noise(this.brown, now, 'lowpass', 500, 90, 1, 0.003, 0.35);
+        crackle(now, 0.25, 8, 0.25, 1800);
+        wet(0.4);
+        break;
+    }
+    done();
+  }
+
+  // ---------------------------------------------------------------- weather ambience
+  /** Cross-fades the looping weather bed. Safe to call before audio is enabled. */
+  setAmbience(key: Ambience, force = false) {
+    this.wantAmb = key;
+    if (!this.ctx || !this.enabled) return;
+    if (!force && this.amb?.key === key) return;
+    const c = this.ctx;
+    const old = this.amb;
+    if (old) {
+      old.gain.gain.setTargetAtTime(0, c.currentTime, 0.8);
+      if (old.tick !== null) clearInterval(old.tick);
+      setTimeout(() => {
+        for (const n of old.nodes) n.stop();
+        old.gain.disconnect();
+      }, 4000);
+    }
+    const gain = c.createGain();
+    gain.gain.value = 0;
+    gain.connect(this.master);
+    const nodes: AudioScheduledSourceNode[] = [];
+    const loop = (buf: AudioBuffer, type: BiquadFilterType, freq: number, q: number, level: number, rate = 1) => {
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.playbackRate.value = rate;
       const f = c.createBiquadFilter();
       f.type = type;
       f.frequency.value = freq;
+      f.Q.value = q;
       const g = c.createGain();
-      g.gain.setValueAtTime(gain * vol, now);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + decay);
-      src.connect(f).connect(g).connect(out);
-      src.start(now, Math.random());
-      src.stop(now + dur);
+      g.gain.value = level;
+      src.connect(f).connect(g).connect(gain);
+      src.start(0, Math.random() * 3);
+      nodes.push(src);
+      return { f, g };
     };
-    const tone = (type: OscillatorType, f0: number, f1: number, dur: number, gain: number) => {
+    /** slow random modulation of a param (wind gusts, rain intensity) */
+    const lfo = (param: AudioParam, rate: number, depth: number) => {
       const o = c.createOscillator();
-      o.type = type;
-      o.frequency.setValueAtTime(f0, now);
-      o.frequency.exponentialRampToValueAtTime(f1, now + dur);
-      const g = c.createGain();
-      g.gain.setValueAtTime(gain * vol, now);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-      o.connect(g).connect(out);
-      o.start(now);
-      o.stop(now + dur);
+      o.frequency.value = rate;
+      const d = c.createGain();
+      d.gain.value = depth;
+      o.connect(d).connect(param);
+      o.start();
+      nodes.push(o);
     };
-
-    switch (kind) {
-      case 'gun': noise(0.08, 'highpass', 1200, 0.25, 0.07); done(0.1); break;
-      case 'cannon': noise(0.4, 'lowpass', 900, 0.8, 0.35); tone('sine', 120, 40, 0.3, 0.6); done(0.4); break;
-      case 'laser': tone('sawtooth', 1800, 300, 0.12, 0.12); done(0.15); break;
-      case 'rocket': noise(0.5, 'bandpass', 700, 0.35, 0.45); done(0.5); break;
-      case 'boom': noise(0.12, 'highpass', 1800, 0.4, 0.1); noise(1, 'lowpass', 650, 1, 0.9); tone('sine', 110, 28, 0.6, 0.9); done(1); break;
-      case 'bigboom': noise(0.25, 'highpass', 2500, 0.7, 0.2); noise(3.2, 'lowpass', 380, 1.3, 3); noise(3.2, 'lowpass', 120, 1, 3); tone('sine', 80, 18, 2, 1.2); tone('triangle', 55, 25, 1.2, 0.5); done(3.2); break;
-      case 'thunder': noise(2.5, 'lowpass', 300, 1.1, 2.3); noise(0.15, 'highpass', 3000, 0.5, 0.12); done(2.5); break;
-      case 'alarm': tone('square', 660, 440, 0.6, 0.15); done(0.6); break;
+    let tick: number | null = null;
+    const level = { clear: 0, rain: 0.5, storm: 0.65, blizzard: 0.55, fog: 0.3, wind: 0.55 }[key];
+    if (key === 'rain' || key === 'storm') {
+      // steady downpour = pink hiss + wet low patter, plus close drops on metal/leaves
+      loop(this.pink, 'highpass', 900, 0.5, 0.35);
+      loop(this.pink, 'bandpass', 3200, 0.4, 0.25);
+      const low = loop(this.brown, 'lowpass', 400, 0.5, key === 'storm' ? 0.5 : 0.25);
+      lfo(low.g.gain, 0.07, 0.12);
+      if (key === 'storm') {
+        const w = loop(this.brown, 'bandpass', 320, 4, 0.35, 0.8);
+        lfo(w.f.frequency, 0.11, 140);
+        lfo(w.g.gain, 0.05, 0.2);
+      }
+      tick = window.setInterval(() => {
+        if (!this.ctx) return;
+        const t = c.currentTime;
+        for (let i = 0; i < (key === 'storm' ? 6 : 4); i++) {
+          const src = c.createBufferSource();
+          src.buffer = this.noise;
+          const f = c.createBiquadFilter();
+          f.type = 'bandpass';
+          f.frequency.value = 2000 + Math.random() * 5000;
+          f.Q.value = 6;
+          const g = c.createGain();
+          const at = t + Math.random() * 0.25;
+          g.gain.setValueAtTime(0.12 * Math.random(), at);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03);
+          src.connect(f).connect(g).connect(gain);
+          src.start(at, Math.random() * 3);
+          src.stop(at + 0.05);
+        }
+      }, 250);
+    } else if (key === 'blizzard' || key === 'wind') {
+      // howling wind: resonant band-passed noise with slowly drifting pitch and gusts
+      const a = loop(this.brown, 'bandpass', key === 'blizzard' ? 420 : 300, 6, 0.6, 0.9);
+      lfo(a.f.frequency, 0.09, 180);
+      lfo(a.g.gain, 0.13, 0.3);
+      const b = loop(this.pink, 'bandpass', 900, 3, 0.25);
+      lfo(b.f.frequency, 0.05, 400);
+      loop(this.pink, 'highpass', key === 'blizzard' ? 4000 : 2500, 0.5, key === 'blizzard' ? 0.18 : 0.1); // snow/sand hiss
+      loop(this.brown, 'lowpass', 120, 0.5, 0.5); // ground rumble
+    } else if (key === 'fog') {
+      const a = loop(this.brown, 'lowpass', 180, 0.5, 0.6);
+      lfo(a.g.gain, 0.04, 0.2);
+      loop(this.pink, 'bandpass', 600, 2, 0.06);
+    } else {
+      // clear: faint distant battlefield air so silence never feels dead
+      const a = loop(this.brown, 'lowpass', 250, 0.5, 0.15);
+      lfo(a.g.gain, 0.06, 0.06);
     }
+    gain.gain.setTargetAtTime(key === 'clear' ? 0.25 : level, c.currentTime, 1.2);
+    this.amb = { key, nodes, gain, tick };
   }
 }
