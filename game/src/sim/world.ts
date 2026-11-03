@@ -127,6 +127,8 @@ export interface WorldHooks {
   sound(kind: 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm' | 'flak' | 'sniper' | 'flame' | 'drop', vol?: number): void;
 }
 
+const ENERGY = new Set<keyof typeof COUNTER>(['laser', 'emp', 'storm', 'titan', 'orbital']);
+
 const CAPTURE_DEFS: { kind: CaptureKind; name: string; x: number; y: number }[] = [
   { kind: 'core', name: 'ENERGY CORE', x: 540, y: 1010 },
   { kind: 'depot', name: 'REPAIR DEPOT', x: 400, y: 700 },
@@ -815,6 +817,17 @@ export class World {
 
   private updateHazards(dt: number) {
     if (this.hazardTerrain !== this.terrain) this.buildHazards();
+    if (this.weather === 'emstorm' || this.weather === 'sandstorm') {
+      for (const u of this.units) {
+        if (!u.alive || u.def.key === 'strike') continue;
+        // EM storm fries drone electronics; a sandstorm slowly scours armour
+        const d = this.weather === 'emstorm' ? (u.def.key === 'drone' || u.def.key === 'repair' ? 14 : 0) : u.cls === 'inf' ? 0 : u.maxHp * 0.002;
+        if (d <= 0) continue;
+        u.hp -= d * dt;
+        if (this.weather === 'emstorm' && Math.random() < dt * 2) this.particles.sparks(u.x, u.y, 3, 0xc090ff, 120);
+        if (u.hp <= 0) this.kill(u, null, -1, 'lightning');
+      }
+    }
     if (this.terrain === 'volcano') {
       for (const u of this.units) {
         if (u.cls === 'air' || !u.alive) continue;
@@ -866,6 +879,7 @@ export class World {
     const energy = u.def.weapon === 'laser' || u.def.weapon === 'flame' || u.def.weapon === 'emp' || u.def.weapon === 'storm';
     let k = 1;
     if (energy && this.terrain === 'desert') k *= 1.2;
+    if (energy && this.weather === 'heatwave') k *= 1.3;
     return k;
   }
 
@@ -1033,6 +1047,8 @@ export class World {
     if (!t.alive || dmg <= 0) return;
     let d = dmg * COUNTER[w][t.cls];
     if (d <= 0) return;
+    if (this.weather === 'emstorm' && ENERGY.has(w)) d *= 1.3;
+    if (this.weather === 'heatwave' && (w === 'flame' || w === 'dragon')) d *= 1.25;
     if (t.cls === 'fort') {
       const fort = t as Fort;
       if (attacker && !attacker.uid) d *= 0.5; // CPU reinforcements chip forts slowly; viewers' units hit full
@@ -1256,6 +1272,8 @@ export class World {
   rangeOf(u: Unit) {
     let r = u.def.range;
     if (this.weather === 'blizzard') r *= 0.8;
+    if (this.weather === 'sandstorm') r *= 0.7;
+    if (this.weather === 'emstorm' && (u.def.key === 'aa' || u.def.key === 'mlrs')) r *= 0.75; // radar blackout
     if (this.weather === 'fog' && (u.def.key === 'sniper' || u.def.key === 'aa' || u.def.key === 'robot')) r *= 0.6;
     return r;
   }
@@ -1388,6 +1406,7 @@ export class World {
       if (this.weather === 'rain' || this.weather === 'storm') speed *= 0.88;
     }
     if (this.weather === 'blizzard') speed *= 0.75;
+    if (this.weather === 'sandstorm') speed *= u.cls === 'air' ? 0.8 : 0.9;
     if (u.cls !== 'air') speed *= this.terrainSpeed(u);
     if (u.haste > 0) speed *= 1.5;
     let dx = gx - u.x, dy = gy - u.y;

@@ -4,7 +4,7 @@
 // limiter so dozens of explosions never clip. Weather has its own looping ambience beds
 // (rain, storm, blizzard wind, fog drone, gusts) that cross-fade when the weather changes.
 type Kind = 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm' | 'flak' | 'sniper' | 'flame' | 'drop';
-export type Ambience = 'clear' | 'rain' | 'storm' | 'blizzard' | 'fog' | 'wind';
+export type Ambience = 'clear' | 'rain' | 'storm' | 'blizzard' | 'fog' | 'wind' | 'sandstorm' | 'heatwave' | 'emstorm';
 
 // D minor battle loop, 8 bars: Dm Bb F C | Dm Bb Gm A  (bass root, pad triad as MIDI notes)
 const PROG: [number, number[]][] = [
@@ -459,7 +459,7 @@ export class Sfx {
       nodes.push(o);
     };
     let tick: number | null = null;
-    const level = { clear: 0, rain: 0.5, storm: 0.65, blizzard: 0.55, fog: 0.3, wind: 0.55 }[key];
+    const level = { clear: 0, rain: 0.5, storm: 0.65, blizzard: 0.55, fog: 0.3, wind: 0.55, sandstorm: 0.6, heatwave: 0.35, emstorm: 0.5 }[key];
     if (key === 'rain' || key === 'storm') {
       // steady downpour = pink hiss + wet low patter, plus close drops on metal/leaves
       loop(this.pink, 'highpass', 900, 0.5, 0.35);
@@ -490,6 +490,56 @@ export class Sfx {
           src.stop(at + 0.05);
         }
       }, 250);
+    } else if (key === 'sandstorm') {
+      // roaring wind full of grit: lower howl + strong mid hiss with gusts
+      const a = loop(this.brown, 'bandpass', 260, 4, 0.7, 0.85);
+      lfo(a.f.frequency, 0.07, 120);
+      lfo(a.g.gain, 0.17, 0.35);
+      const h = loop(this.pink, 'bandpass', 1800, 0.8, 0.35);
+      lfo(h.g.gain, 0.21, 0.2);
+      loop(this.noise, 'highpass', 5000, 0.5, 0.06);
+      loop(this.brown, 'lowpass', 100, 0.5, 0.6);
+    } else if (key === 'heatwave') {
+      // shimmering heat: high cicada-like buzz pulsing over a dry low drone
+      const a = loop(this.noise, 'bandpass', 4600, 18, 0.2);
+      lfo(a.g.gain, 2.3, 0.18);
+      lfo(a.f.frequency, 0.1, 300);
+      const b = loop(this.brown, 'lowpass', 160, 0.5, 0.3);
+      lfo(b.g.gain, 0.05, 0.1);
+    } else if (key === 'emstorm') {
+      // electric hum + random crackles
+      const hum = c.createOscillator();
+      hum.type = 'sawtooth';
+      hum.frequency.value = 55;
+      const hf = c.createBiquadFilter();
+      hf.type = 'lowpass';
+      hf.frequency.value = 400;
+      const hg = c.createGain();
+      hg.gain.value = 0.05;
+      hum.connect(hf).connect(hg).connect(gain);
+      hum.start();
+      nodes.push(hum);
+      lfo(hf.frequency, 0.3, 250);
+      const a = loop(this.brown, 'bandpass', 700, 6, 0.3);
+      lfo(a.f.frequency, 0.13, 400);
+      tick = window.setInterval(() => {
+        if (!this.ctx || Math.random() < 0.4) return;
+        const t = c.currentTime;
+        for (let i = 0; i < 8; i++) {
+          const src = c.createBufferSource();
+          src.buffer = this.noise;
+          const f = c.createBiquadFilter();
+          f.type = 'highpass';
+          f.frequency.value = 3000;
+          const g = c.createGain();
+          const at = t + i * 0.012 + Math.random() * 0.01;
+          g.gain.setValueAtTime(0.2 * Math.random(), at);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + 0.015);
+          src.connect(f).connect(g).connect(gain);
+          src.start(at, Math.random() * 3);
+          src.stop(at + 0.02);
+        }
+      }, 300);
     } else if (key === 'blizzard' || key === 'wind') {
       // howling wind: resonant band-passed noise with slowly drifting pitch and gusts
       const a = loop(this.brown, 'bandpass', key === 'blizzard' ? 420 : 300, 6, 0.6, 0.9);

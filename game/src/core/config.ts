@@ -19,7 +19,7 @@ export const TERRAINS: { key: TerrainKey; name: string; groundSpeed: number; hea
   { key: 'industrial', name: 'Industrial Zone', groundSpeed: 1, heavyPenalty: 1, hint: 'Fuel depots explode, pylons arc' },
 ];
 
-export type WeatherKey = 'clear' | 'rain' | 'storm' | 'blizzard' | 'fog' | 'wind';
+export type WeatherKey = 'clear' | 'rain' | 'storm' | 'blizzard' | 'fog' | 'wind' | 'sandstorm' | 'heatwave' | 'emstorm';
 export const WEATHERS: { key: WeatherKey; name: string; icon: string; hint: string }[] = [
   { key: 'clear', name: 'Clear Skies', icon: '☀', hint: 'No modifiers' },
   { key: 'rain', name: 'Heavy Rain', icon: '🌧', hint: 'Flames weaker, ground units slower' },
@@ -27,6 +27,9 @@ export const WEATHERS: { key: WeatherKey; name: string; icon: string; hint: stri
   { key: 'blizzard', name: 'Blizzard', icon: '❄', hint: 'Everyone slower, shorter range' },
   { key: 'fog', name: 'Fog', icon: '🌫', hint: 'Snipers and bombers lose range' },
   { key: 'wind', name: 'Strong Wind', icon: '💨', hint: 'Aircraft and rockets drift' },
+  { key: 'sandstorm', name: 'Sandstorm', icon: '🌪', hint: 'Short range, armour sandblasted' },
+  { key: 'heatwave', name: 'Heatwave', icon: '🔥', hint: 'Energy weapons overheat, fire burns hotter' },
+  { key: 'emstorm', name: 'EM Storm', icon: '🌀', hint: 'Drones fall, energy weapons supercharged' },
 ];
 
 /** Spots the terrain painter keeps clear of props (fortress slots). Set before building terrain. */
