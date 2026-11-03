@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>CMCW Art Lab</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05070c; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #e8f1ff; }
+  #stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #stage canvas { display: block; height: 100%; max-width: 100%; aspect-ratio: 9 / 16; object-fit: contain; box-shadow: 0 0 40px #000; }
+  #ui { position: fixed; top: 8px; left: 8px; z-index: 10; max-width: min(360px, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow: auto;
+        background: rgba(8, 12, 22, .82); border: 1px solid #23324d; border-radius: 10px; padding: 8px 10px; font-size: 13px; backdrop-filter: blur(6px); }
+  #ui.collapsed .body { display: none; }
+  #ui h1 { font-size: 14px; margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  #ui .grp { margin-top: 8px; }
+  #ui .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7f93b5; margin-bottom: 4px; }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 4px; }
+  #ui button { background: #13203a; color: #dbe7ff; border: 1px solid #2a3d62; border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+  #ui button:hover { border-color: #4b6aa3; }
+  #ui button.on { background: #1f6fd1; border-color: #5aa2ff; color: #fff; }
+  #ui button.red { background: #4a1220; border-color: #a3354f; }
+  #ui button.red.on { background: #d1324f; }
+  #ui .stats { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9fb4d8; margin-top: 8px; white-space: pre; }
+  #ui .note { font-size: 11px; color: #8ea0bf; margin-top: 6px; line-height: 1.35; }
+  .clean #ui { display: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="ui"></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
