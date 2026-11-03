@@ -4,6 +4,7 @@ import { Container, Filter, GlProgram, Sprite, Texture } from 'pixi.js';
 import { H, TEAMS, W, type TerrainKey, rand } from '../config';
 import type { FxTextures } from './fxTextures';
 import type { Particles } from '../fx/particles';
+import * as P from './props';
 
 // ------------------------------------------------------------ noise
 function hash(x: number, y: number, s: number) {
@@ -135,6 +136,15 @@ function paintJungle(): HTMLCanvasElement {
     ctx.fill();
   }
   clearBases(ctx, 'rgba(60,70,50,0.6)');
+  for (let i = 0; i < 45; i++) { const [x, y] = P.spot(20); P.bush(ctx, x, y, rand(10, 22), '#1d3a1c', '#4f8a3a'); }
+  for (let i = 0; i < 14; i++) { const [x, y] = P.spot(30); P.rock(ctx, x, y, rand(10, 22), '#5d5f55', '#8a8c80', 'rgba(70,120,50,0.7)'); }
+  for (let i = 0; i < 8; i++) { const [x, y] = P.spot(40); P.log(ctx, x, y, rand(50, 90), rand(0, 3.14)); }
+  P.stoneRuin(ctx, 230, 700, 150);
+  P.stoneRuin(ctx, 860, 1280, 130);
+  P.bunker(ctx, 820, 640, 70, '#4f5a44');
+  P.bunker(ctx, 250, 1340, 70, '#4f5a44');
+  P.battlefield(ctx, 'rgba(110,85,50,0.5)', '#7a6a48');
+  P.vignette(ctx, 0.5);
   return cv;
 }
 
@@ -191,6 +201,20 @@ function paintIce(): HTMLCanvasElement {
   }
   winding(ctx, 540, 60, 'rgba(120,140,160,0.25)', 90, 2.1);
   clearBases(ctx, 'rgba(120,140,160,0.5)');
+  for (let i = 0; i < 34; i++) {
+    const side = i % 2 ? rand(10, 140) : W - rand(10, 140);
+    const y = rand(60, H - 60);
+    if (!P.nearBase(side, y)) P.pine(ctx, side, y, rand(18, 32));
+  }
+  for (let i = 0; i < 6; i++) { const [x, y] = P.spot(40, true); P.pine(ctx, x, y, rand(16, 26)); }
+  P.dome(ctx, 860, 560, 34, '#c23b2a');
+  P.dome(ctx, 920, 620, 22, '#c23b2a');
+  P.fuelTank(ctx, 800, 640, 18);
+  P.fuelTank(ctx, 200, 1300, 22);
+  P.fuelTank(ctx, 240, 1340, 16);
+  P.bunker(ctx, 180, 620, 64, '#8b98a3');
+  P.battlefield(ctx, 'rgba(235,245,255,0.55)', '#a8a490');
+  P.vignette(ctx, 0.45);
   return cv;
 }
 
@@ -239,6 +263,15 @@ function paintSwamp(): HTMLCanvasElement {
   }
   winding(ctx, 540, 50, 'rgba(60,55,40,0.5)', 140, 0.4);
   clearBases(ctx, 'rgba(50,50,40,0.6)');
+  for (let i = 0; i < 40; i++) { const [x, y] = P.spot(20); P.reeds(ctx, x, y); }
+  for (let i = 0; i < 12; i++) { const [x, y] = P.spot(40); P.deadTree(ctx, x, y, rand(24, 40)); }
+  P.wreckMech(ctx, 820, 1090, 60);
+  P.wreckMech(ctx, 240, 900, 46);
+  P.pipe(ctx, -20, 1220, 420, 1180);
+  P.pipe(ctx, 1100, 720, 700, 690);
+  for (let i = 0; i < 6; i++) { const [x, y] = P.spot(40); P.barrels(ctx, x, y, 3 + ((Math.random() * 3) | 0), '#5a3a1e', '#b8e02c'); }
+  P.battlefield(ctx, 'rgba(90,100,50,0.5)', '#6a6448');
+  P.vignette(ctx, 0.6);
   return cv;
 }
 
@@ -288,6 +321,7 @@ function paintCity(): HTMLCanvasElement {
           ctx.fillStyle = '#2a2d33';
           ctx.fillRect(bx + rand(10, bw - 30), by + rand(10, bh - 30), rand(10, 18), rand(10, 18));
         }
+        P.rooftop(ctx, bx, by, bw - 6, bh);
         // destroyed chunk: crater into roof with rubble
         if (Math.random() < 0.7) {
           const cx = bx + rand(0, bw), cy = by + rand(0, bh), r = rand(20, 50);
@@ -322,6 +356,21 @@ function paintCity(): HTMLCanvasElement {
     ctx.restore();
   }
   for (let i = 0; i < 30; i++) blotch(ctx, rand(0, W), rand(0, H), rand(30, 80), 'rgba(0,0,0,0.25)');
+  // barricades at intersections + street lights
+  for (const x of roadsX) for (const y of roadsY) {
+    if (P.nearBase(x, y, 260)) continue;
+    if (Math.random() < 0.6) P.sandbags(ctx, x + rand(-30, 30), y + rand(-30, 30), 70, rand(0, 3.14), '#8a8070');
+    if (Math.random() < 0.5) P.hedgehog(ctx, x + rand(-40, 40), y + rand(-40, 40));
+    for (const [dx, dy] of [[-60, -60], [60, 60]]) {
+      ctx.fillStyle = '#2a2d33';
+      ctx.beginPath();
+      ctx.arc(x + dx, y + dy, 4, 0, 6.28);
+      ctx.fill();
+    }
+  }
+  for (let i = 0; i < 10; i++) { const [x, y] = P.spot(30); P.crate(ctx, x, y, rand(12, 18), '#5a5040'); }
+  P.battlefield(ctx, 'rgba(140,140,140,0.5)', '#8a8070');
+  P.vignette(ctx, 0.55);
   return cv;
 }
 
@@ -539,6 +588,19 @@ export function buildTerrain(key: TerrainKey, fx: FxTextures, particles: Particl
   }
 
   if (key === 'city') {
+    const lights = [[60, 760], [1020, 1160], [40, 1500]].map(([x, y], i) => {
+      const b = new Sprite(fx.beam);
+      b.anchor.set(0, 0.5);
+      b.position.set(x, y);
+      b.width = 700;
+      b.height = 90;
+      b.tint = 0xdfe8ff;
+      b.alpha = 0.08;
+      b.blendMode = 'add';
+      over.addChild(b);
+      return { b, base: x < W / 2 ? 0 : Math.PI, ph: i * 2 };
+    });
+    updaters.push((_dt, t) => lights.forEach((l) => (l.b.rotation = l.base + Math.sin(t * 0.35 + l.ph) * 0.6)));
     const fires: [number, number][] = [];
     for (let i = 0; i < 9; i++) fires.push([rand(60, W - 60), rand(200, H - 200)]);
     const signs: Sprite[] = [];

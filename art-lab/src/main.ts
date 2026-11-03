@@ -41,11 +41,11 @@ async function main() {
   gallery.visible = false;
 
   const bloom = new AdvancedBloomFilter({ threshold: 0.62, bloomScale: 0.9, brightness: 1, blur: 6, quality: 4 });
-  let shock: ShockwaveFilter | null = null;
+  let shocks: ShockwaveFilter[] = [];
   let bloomOn = !params.has('nobloom');
   const applyFilters = () => {
     const f = [];
-    if (shock) f.push(shock);
+    f.push(...shocks);
     if (bloomOn) f.push(bloom);
     world.filters = f.length ? f : null;
   };
@@ -159,13 +159,22 @@ async function main() {
   };
   battle.onShake = (a) => (shake = Math.min(40, shake + a));
   battle.onHitStop = (s) => (hitStop = Math.max(hitStop, s));
-  battle.onBigBoom = (x, y) => {
+  const screenFlash = new Sprite(fx.white);
+  screenFlash.width = W;
+  screenFlash.height = H;
+  screenFlash.blendMode = 'add';
+  screenFlash.tint = 0xffe0b0;
+  screenFlash.alpha = 0;
+  battle.onBigBoom = (x, y, power) => {
+    if (shocks.length >= 3) shocks.shift()?.destroy();
     const sx = (x - cam.x) * cam.zoom + W / 2, sy = (y - cam.y) * cam.zoom + H / 2;
-    shock = new ShockwaveFilter({ center: { x: sx, y: sy }, amplitude: 40, wavelength: 180, speed: 1100, brightness: 1.25, radius: 1100, time: 0 });
+    shocks.push(new ShockwaveFilter({ center: { x: sx, y: sy }, amplitude: 50 * power, wavelength: 200 * power + 60, speed: 1200 * Math.sqrt(power), brightness: 1 + 0.35 * power, radius: 1400 * power, time: 0 }));
+    screenFlash.alpha = Math.max(screenFlash.alpha, 0.55 * power);
     applyFilters();
   };
 
   // Titan cut-in: zoom + slow motion + banner (tier-5 "pay-to-flex" moment)
+  app.stage.addChildAt(screenFlash, app.stage.getChildIndex(weather.layer) + 1);
   const cutBand = new Graphics();
   const cutTitle = new Text({ text: 'MECHA TITAN', style: { fontFamily: 'Arial', fontWeight: '900', fontSize: 92, fill: 0xffffff, stroke: { color: 0x000000, width: 8 }, letterSpacing: 4 } });
   const cutName = new Text({ text: '', style: { fontFamily: 'Arial', fontWeight: '900', fontSize: 46, fill: 0xffe27a, stroke: { color: 0x000000, width: 6 } } });
@@ -288,7 +297,7 @@ async function main() {
         }),
         btn('Reset', false, () => battle.reset()),
         btn(bloomOn ? 'Bloom: ON' : 'Bloom: OFF', bloomOn, () => ((bloomOn = !bloomOn), applyFilters())),
-        btn(sfx.enabled ? '🔊 Sound: ON' : '🔈 Sound: OFF', sfx.enabled, () => sfx.enable(!sfx.enabled)),
+        btn(sfx.enabled ? '🔊 Sound + music: ON' : '🔈 Sound + music: OFF', sfx.enabled, () => sfx.enable(!sfx.enabled)),
       ]),
     );
     const note = document.createElement('div');
@@ -375,15 +384,20 @@ async function main() {
     terrain?.update(dt, t, weather.windX / 420);
     weather.update(dt, t);
 
-    if (shock) {
-      shock.time += realDt;
-      if (shock.time > 1.3) {
-        shock = null;
-        applyFilters();
-      }
+    if (shocks.length) {
+      for (const s of shocks) s.time += realDt;
+      const before = shocks.length;
+      shocks = shocks.filter((s) => (s.time > 1.4 ? (s.destroy(), false) : true));
+      if (shocks.length !== before) applyFilters();
     }
+    screenFlash.alpha = Math.max(0, screenFlash.alpha - realDt * 2.5);
 
     // auto quality: drop particle budget / bloom if the stream PC struggles
+    // music intensity follows the battle: unit count + big moments
+    const st0 = battle.units.length;
+    let target = 0.25 + Math.min(0.55, st0 / 110) + Math.min(0.3, shake / 60);
+    if (cineT > 0 || battle.units.some((u) => u.def.tier >= 5)) target = 1;
+    sfx.intensity += (Math.min(1, target) - sfx.intensity) * Math.min(1, realDt * 0.5);
     const fps = tk.FPS;
     lowFpsTime = fps < 50 ? lowFpsTime + realDt : Math.max(0, lowFpsTime - realDt);
     particles.budget = lowFpsTime > 3 ? 0.5 : 1;

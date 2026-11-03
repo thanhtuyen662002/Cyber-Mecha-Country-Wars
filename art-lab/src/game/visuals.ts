@@ -26,7 +26,7 @@ export interface UnitVisual {
 }
 
 // display size (px) for image skin, roughly matching the code rig footprint
-export const IMAGE_SIZE: Record<UnitKey, number> = { infantry: 30, drone: 32, tank: 70, spider: 84, heli: 118, titan: 200 };
+export const IMAGE_SIZE: Record<UnitKey, number> = { infantry: 30, drone: 32, tank: 60, spider: 96, heli: 118, titan: 200 };
 const AIR_SHADOW: Partial<Record<UnitKey, [number, number, number]>> = { drone: [16, 24, 0.7], heli: [34, 52, 0.85] };
 
 function layered(pt: PartTex, team: Team) {
@@ -185,32 +185,39 @@ export function buildVisual(key: UnitKey, skin: Skin, team: Team, art: UnitArt, 
       };
     }
     case 'spider': {
-      root.addChild(aura(fx, team, 110));
+      root.addChild(aura(fx, team, 120));
       const bodyC = new Container();
       root.addChild(bodyC);
-      const legDefs: [number, number, number][] = [];
-      for (const s of [1, -1]) legDefs.push([6, 9 * s, 0.9 * s], [-2, 11 * s, 1.55 * s], [-12, 10 * s, 2.2 * s]);
-      const legs = legDefs.map(([x, y, a]) => {
+      // 4 legs on the corner actuators; diagonal pairs step together (FL+RR, FR+RL)
+      const legDefs: [number, number, number, number][] = [
+        [13, -15, -0.95, 0], [13, 15, 0.95, Math.PI], [-13, -15, -2.2, Math.PI], [-13, 15, 2.2, 0],
+      ];
+      const legs = legDefs.map(([x, y, a, ph]) => {
         const l = add(art.spiderLeg, bodyC);
         l.c.position.set(x, y);
         l.c.rotation = a;
-        return { l, a, x, y };
+        l.c.scale.set(0.8);
+        return { l, a, ph };
       });
-      const body = add(art.spiderBody, bodyC);
+      add(art.spiderBody, bodyC);
+      const turret = add(art.spiderTurret);
       const sh = shadowOf(art.spiderBody.base, 0.35);
-      sh.scale.set(1.6);
+      sh.scale.set(1.9);
       shadow.addChild(sh);
       return {
         root, shadow, glows,
         update(st) {
           bodyC.rotation = st.angle;
           sh.rotation = st.angle;
-          const ph = st.dist * 0.12;
-          legs.forEach((g, i) => {
-            const side = i < 3 ? 0 : Math.PI;
-            g.l.c.rotation = g.a + Math.sin(ph + side + (i % 3) * 2.1) * 0.28 * st.moving;
+          const ph = st.dist * 0.1;
+          legs.forEach((g) => {
+            const w = Math.sin(ph + g.ph);
+            g.l.c.rotation = g.a + w * 0.22 * st.moving * Math.sign(g.a);
+            g.l.c.scale.x = 0.8 * (1 + Math.max(0, Math.cos(ph + g.ph)) * 0.08 * st.moving); // foot lift/extend
           });
-          body.glow.alpha = 0.8 + Math.sin(st.t * 6) * 0.2;
+          bodyC.y = Math.abs(Math.sin(ph)) * -1.2 * st.moving;
+          turret.c.rotation = st.aim;
+          turret.c.y = bodyC.y;
           shadow.position.set(root.x + 6, root.y + 8);
         },
       };

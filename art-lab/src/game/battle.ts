@@ -75,7 +75,7 @@ export class Battle {
   onFeed: (msg: string, team: TeamId) => void = () => {};
   onShake: (amount: number) => void = () => {};
   onTitan: (u: { x: number; y: number }, name: string, team: Team) => void = () => {};
-  onBigBoom: (x: number, y: number) => void = () => {};
+  onBigBoom: (x: number, y: number, power: number) => void = () => {};
   onHitStop: (sec: number) => void = () => {};
 
   constructor(private renderer: Renderer, private art: UnitArt, private img: ImageArt, private fx: FxTextures, private particles: Particles, private sfx: Sfx) {
@@ -308,7 +308,8 @@ export class Battle {
       this.stampDecal(this.fx.scorch, u.x, u.y, 0.5 + tier * 0.25, 0.9);
     }
     if (tier >= 2) {
-      this.onShake(4 + tier * 3);
+      this.onShake(6 + tier * 4);
+      if (tier >= 3) this.onHitStop(0.05);
       // burning wreck
       const tex = this.skin === 'image' ? this.img.tex[`unit_${u.def.key}`] : { tank: this.art.tankHull, spider: this.art.spiderBody, heli: this.art.heliBody, titan: this.art.titanTorso }[u.def.key as 'tank']?.base;
       if (tex) {
@@ -322,6 +323,7 @@ export class Battle {
         this.wrecks.push({ s, life: 7, smoke: 0 });
       }
     }
+    if (tier >= 3 && tier < 5) this.onBigBoom(u.x, u.y, 0.45);
     if (tier >= 5) this.megaBoom(u.x, u.y);
     if (tier >= 1) this.onFeed(`@${u.name}'s ${u.def.name} destroyed`, u.team === 0 ? 1 : 0);
     this.removeUnit(u);
@@ -333,7 +335,7 @@ export class Battle {
     this.stampDecal(this.fx.crater, x, y, 2.8, 0.9);
     this.stampDecal(this.fx.scorch, x, y, 3.5, 1);
     this.onShake(32);
-    this.onBigBoom(x, y);
+    this.onBigBoom(x, y, 1);
     this.onHitStop(0.09);
     this.sfx.play('bigboom');
   }
@@ -504,7 +506,7 @@ export class Battle {
 
     // tank tread marks on soft ground
     if (def.key === 'tank' && v > 8 && Math.random() < dt * 8 && this.terrain !== 'city') {
-      for (const s of [-1, 1]) this.stampDecal(this.fx.track, u.x - Math.sin(u.angle) * 16 * s, u.y + Math.cos(u.angle) * 16 * s, 1, 0.5, u.angle + Math.PI / 2);
+      for (const s of [-1, 1]) this.stampDecal(this.fx.track, u.x - Math.sin(u.angle) * 17 * s, u.y + Math.cos(u.angle) * 17 * s, 1, 0.5, u.angle + Math.PI / 2);
     }
     if (def.key === 'heli' && Math.random() < dt * 4) this.particles.trail(u.x - Math.cos(u.angle) * 40, u.y - Math.sin(u.angle) * 40, 0.6, 0x666666);
 
@@ -559,7 +561,7 @@ export class Battle {
         break;
       }
       case 'shell': {
-        const m = this.muzzle(u, 44, 0);
+        const m = this.muzzle(u, 39, 0);
         this.particles.muzzle(m.x, m.y, u.aim, 0.7, 0xffc070);
         this.particles.smokePuff(m.x, m.y, 0.5, 0x777777, 1.2);
         u.flash = 0.6;
@@ -569,7 +571,7 @@ export class Battle {
       }
       case 'laser': {
         const side = (u.salvo++ % 2) * 2 - 1;
-        const m = this.muzzle(u, 36, 6.5 * side);
+        const m = this.muzzle(u, 33, 5 * side);
         const hx = t.x + rand(-6, 6), hy = t.y + rand(-6, 6);
         this.beam(m.x, m.y, hx, hy, 9, team.color, 0.09);
         this.particles.sparks(hx, hy, 3, team.color, 200);

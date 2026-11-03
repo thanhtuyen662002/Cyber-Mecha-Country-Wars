@@ -135,77 +135,103 @@ function droneRotor(): DrawFn {
 }
 
 function tankTracks(phase: number): DrawFn {
+  // Short, wide hull: 48 long x 46 wide (was 62 x 42) so it reads as a compact tank.
   return ({ b }) => {
-    for (const y of [-21, 11]) {
-      b.roundRect(-31, y, 62, 10, 3.5).fill(0x1a1d23).stroke(EDGE);
-      for (let x = -29 + phase * 3; x < 29; x += 6) b.rect(x, y + 1, 2.2, 8).fill(0x3a3f49);
-      for (const wx of [-22, -11, 0, 11, 22]) b.circle(wx, y + 5, 2).fill({ color: 0x5c6575, alpha: 0.5 });
+    for (const y of [-23, 12]) {
+      b.roundRect(-25, y, 50, 11, 4).fill(0x1a1d23).stroke(EDGE);
+      for (let x = -23 + phase * 3; x < 23; x += 6) b.rect(x, y + 1, 2.4, 9).fill(0x3a3f49);
+      for (const wx of [-16, -5.5, 5.5, 16]) b.circle(wx, y + 5.5, 2.3).fill({ color: 0x5c6575, alpha: 0.55 });
     }
   };
 }
 
 function tankHull(): DrawFn {
   return ({ b, p, g }) => {
-    b.rect(-29, -16, 58, 3).fill(0x4a5262);
-    b.rect(-29, 13, 58, 3).fill(0x4a5262);
-    b.poly([-27, -13, 21, -13, 29, -6, 29, 6, 21, 13, -27, 13]).fill(metal()).stroke(EDGE);
-    b.moveTo(21, -13).lineTo(21, 13).stroke(PANEL);
-    b.moveTo(-14, -13).lineTo(-14, 13).stroke(PANEL);
-    for (let x = -25; x < -15; x += 2.5) b.rect(x, -9, 1.2, 18).fill({ color: 0x0e1116, alpha: 0.8 }); // engine grille
-    b.moveTo(-26, -12).lineTo(20, -12).stroke(HI);
-    b.circle(-20, 9, 1.5).fill(0x20252e);
-    b.circle(-20, -9, 1.5).fill(0x20252e);
-    p.poly([0, -13, 6, -13, 2, 0, 6, 13, 0, 13, -4, 0]).fill(0xe8e8e8).stroke(PANEL);
-    p.poly([22, -12, 28, -6, 24, -6, 19, -11]).fill(0xe8e8e8);
-    p.poly([22, 12, 28, 6, 24, 6, 19, 11]).fill(0xe8e8e8);
-    g.rect(27, -11, 2.4, 3.4).fill(0xffffff);
-    g.rect(27, 7.6, 2.4, 3.4).fill(0xffffff);
-    g.rect(-27.5, -7, 1.8, 14).fill(0xffffff);
+    b.rect(-24, -17, 48, 3.5).fill(0x4a5262); // fenders
+    b.rect(-24, 13.5, 48, 3.5).fill(0x4a5262);
+    b.poly([-22, -14, 15, -14, 23, -7, 23, 7, 15, 14, -22, 14]).fill(metal()).stroke(EDGE);
+    b.moveTo(15, -14).lineTo(15, 14).stroke(PANEL);
+    b.moveTo(-11, -14).lineTo(-11, 14).stroke(PANEL);
+    for (let x = -20; x < -12; x += 2.4) b.rect(x, -10, 1.2, 20).fill({ color: 0x0e1116, alpha: 0.8 }); // engine grille
+    b.moveTo(-21, -13).lineTo(14, -13).stroke(HI);
+    for (const y of [-10, 10]) b.roundRect(-8, y - 2.5, 8, 5, 1.5).fill(0x2a303b).stroke(EDGE); // stowage boxes
+    b.circle(-16, 11, 1.5).fill(0x20252e);
+    b.circle(-16, -11, 1.5).fill(0x20252e);
+    p.poly([2, -14, 8, -14, 4, 0, 8, 14, 2, 14, -2, 0]).fill(0xe8e8e8).stroke(PANEL);
+    p.poly([16, -13, 22, -7, 18, -7, 13, -12]).fill(0xe8e8e8);
+    p.poly([16, 13, 22, 7, 18, 7, 13, 12]).fill(0xe8e8e8);
+    g.rect(21.5, -12, 2.4, 3.6).fill(0xffffff);
+    g.rect(21.5, 8.4, 2.4, 3.6).fill(0xffffff);
+    g.rect(-22.5, -8, 1.8, 16).fill(0xffffff);
   };
 }
 
 function tankTurret(): DrawFn {
   return ({ b, p, g }) => {
-    b.rect(8, -2.6, 31, 5.2).fill(darkMetal()).stroke(EDGE);
-    b.rect(37, -3.8, 6, 7.6).fill(0x2a303b).stroke(EDGE); // muzzle brake
-    b.rect(5, -5.5, 7, 11).fill(0x3d4452).stroke(EDGE);
-    b.poly([-13, -10, 4, -12, 12, -6, 12, 6, 4, 12, -13, 10, -16, 4, -16, -4]).fill(metal()).stroke(EDGE);
-    b.circle(-5, 4.5, 3.8).fill(darkMetal()).stroke(EDGE); // hatch
-    b.rect(-2, -9, 4, 3).fill(0x20252e);
-    b.moveTo(-13, -9).lineTo(3, -11).stroke(HI);
-    p.poly([-9, -8, -5, -8, -1, 0, -5, 8, -9, 8, -5, 0]).fill(0xeeeeee);
-    g.circle(5, -8, 1.7).fill(0xffffff);
-    g.rect(13, -0.6, 23, 1.2).fill(0xffffff);
+    b.rect(9, -2.8, 25, 5.6).fill(darkMetal()).stroke(EDGE);
+    b.rect(32, -4, 6, 8).fill(0x2a303b).stroke(EDGE); // muzzle brake
+    b.rect(6, -6, 7, 12).fill(0x3d4452).stroke(EDGE);
+    b.poly([-14, -12, 4, -13, 13, -7, 13, 7, 4, 13, -14, 12, -17, 5, -17, -5]).fill(metal()).stroke(EDGE);
+    b.circle(-5, 5, 4).fill(darkMetal()).stroke(EDGE); // hatch
+    b.rect(-3, -10.5, 5, 3.4).fill(0x20252e);
+    b.rect(-16, -3, 3, 6).fill(0x20252e); // rear bustle
+    b.moveTo(-14, -11).lineTo(3, -12).stroke(HI);
+    p.poly([-10, -9, -6, -9, -2, 0, -6, 9, -10, 9, -6, 0]).fill(0xeeeeee);
+    g.circle(5, -9, 1.8).fill(0xffffff);
+    g.rect(13, -0.6, 19, 1.2).fill(0xffffff);
   };
 }
 
+// Quad walker mech: armoured chassis + 4 hydraulic legs + separate twin-cannon turret.
 function spiderBody(): DrawFn {
   return ({ b, p, g }) => {
-    b.ellipse(-14, 0, 17, 14).fill(metal()).stroke(EDGE); // abdomen
-    for (let i = -2; i <= 2; i++) b.moveTo(-26, i * 4.5).lineTo(-3, i * 3).stroke(PANEL);
-    b.poly([-4, -12, 10, -13, 17, -6, 17, 6, 10, 13, -4, 12, -8, 0]).fill(darkMetal()).stroke(EDGE); // thorax
-    b.poly([14, -8, 26, -5, 29, 0, 26, 5, 14, 8]).fill(metal()).stroke(EDGE); // head
-    b.rect(24, -8, 12, 3).fill(0x20252e); // twin emitters
-    b.rect(24, 5, 12, 3).fill(0x20252e);
-    b.circle(4, 0, 5).fill(0x2a303b).stroke(EDGE);
-    p.poly([-24, -6, -10, -11, -8, -6, -22, -2]).fill(0xeeeeee);
-    p.poly([-24, 6, -10, 11, -8, 6, -22, 2]).fill(0xeeeeee);
-    p.rect(-2, -2, 12, 4).fill(0xdddddd);
-    for (const [x, y, r] of [[25, -2.5, 1.9], [25, 2.5, 1.9], [21, -5, 1.3], [21, 5, 1.3], [27.5, 0, 1.2]]) g.circle(x, y, r).fill(0xffffff);
-    g.circle(4, 0, 2.6).fill(0xffffff);
-    g.rect(34, -7.4, 2.4, 1.8).fill(0xffffff);
-    g.rect(34, 5.6, 2.4, 1.8).fill(0xffffff);
-    g.moveTo(-28, 0).lineTo(-4, 0).stroke({ width: 1.2, color: 0xffffff });
+    const hull = [-22, -10, -14, -20, 14, -20, 24, -10, 24, 10, 14, 20, -14, 20, -22, 10];
+    b.poly(hull).fill(darkMetal()).stroke({ width: 1.6, color: 0x10141a });
+    b.poly([-17, -8, -11, -15, 11, -15, 19, -8, 19, 8, 11, 15, -11, 15, -17, 8]).fill(metal()).stroke(EDGE);
+    // hip actuator housings at the four corners
+    for (const [x, y] of [[13, -15], [13, 15], [-13, -15], [-13, 15]]) b.roundRect(x - 6, y - 6, 12, 12, 3).fill(0x2a303b).stroke(EDGE);
+    // rear power pack + exhaust vents
+    b.roundRect(-30, -9, 10, 18, 3).fill(0x2a303b).stroke(EDGE);
+    for (let i = -1; i <= 1; i++) b.rect(-29, i * 5 - 1, 7, 2).fill(0x0e1116);
+    // front sensor bar
+    b.roundRect(20, -7, 8, 14, 2).fill(0x1d222b).stroke(EDGE);
+    b.moveTo(-16, -14).lineTo(10, -14).stroke(HI);
+    b.moveTo(0, -15).lineTo(0, 15).stroke(PANEL);
+    // hazard stripes on the side armour (team paint)
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) p.poly([-6 + i * 6, s * 15, -3 + i * 6, s * 15, -6 + i * 6, s * 19.5, -9 + i * 6, s * 19.5]).fill(0xeeeeee);
+    p.rect(-17, -3, 6, 6).fill(0xe6e6e6);
+    g.rect(26, -5.5, 1.8, 11).fill(0xffffff); // sensor strip
+    for (const [x, y] of [[13, -15], [13, 15], [-13, -15], [-13, 15]]) g.circle(x, y, 1.6).fill(0xffffff);
+    g.rect(-30, -1, 2, 2).fill(0xffffff);
+  };
+}
+
+function spiderTurret(): DrawFn {
+  return ({ b, p, g }) => {
+    for (const s of [-1, 1]) {
+      b.rect(6, s * 5 - 2, 26, 4).fill(darkMetal()).stroke(EDGE); // twin barrels
+      b.rect(29, s * 5 - 3, 5, 6).fill(0x2a303b).stroke(EDGE);
+    }
+    b.poly([-10, -9, 6, -10, 12, -5, 12, 5, 6, 10, -10, 9, -13, 0]).fill(metal()).stroke(EDGE);
+    b.circle(-2, 0, 5).fill(0x1d222b).stroke(EDGE);
+    p.poly([-9, -8, -4, -8, -4, 8, -9, 8]).fill(0xeeeeee);
+    g.circle(-2, 0, 2.4).fill(0xffffff);
+    for (const s of [-1, 1]) g.rect(12, s * 5 - 0.5, 18, 1).fill(0xffffff);
   };
 }
 
 function spiderLeg(): DrawFn {
-  // Hip at origin, leg extends to +X. Rotated per leg at runtime.
-  return ({ b, g }) => {
-    b.poly([0, -3, 20, -3.5, 22, 0, 20, 3.5, 0, 3]).fill(darkMetal()).stroke(EDGE);
-    b.circle(21, 0, 3.6).fill(metal()).stroke(EDGE);
-    b.poly([22, -2.5, 40, -1, 44, 0, 40, 1, 22, 2.5]).fill(metal()).stroke(EDGE);
-    g.circle(21, 0, 1.2).fill(0xffffff);
+  // Hip at origin, leg extends to +X. Thigh block + knee actuator + piston + shin + foot pad.
+  return ({ b, p, g }) => {
+    b.circle(0, 0, 5.5).fill(0x3a414d).stroke(EDGE);
+    b.poly([0, -5, 22, -4.5, 24, 0, 22, 4.5, 0, 5]).fill(metal()).stroke(EDGE); // thigh armour
+    b.moveTo(3, 6.5).lineTo(21, 6).stroke({ width: 2, color: 0x8d98ab }); // hydraulic piston
+    b.rect(3, 5.5, 8, 2).fill(0x2a303b);
+    b.roundRect(19, -6, 11, 12, 2).fill(0x2a303b).stroke(EDGE); // knee actuator
+    b.poly([29, -3.5, 44, -2.5, 44, 2.5, 29, 3.5]).fill(darkMetal()).stroke(EDGE); // shin
+    b.roundRect(42, -6.5, 8, 13, 3).fill(0x3a414d).stroke(EDGE); // foot pad
+    p.rect(8, -4.5, 6, 9).fill(0xeeeeee);
+    g.circle(24.5, 0, 1.5).fill(0xffffff);
   };
 }
 
@@ -363,6 +389,7 @@ export interface UnitArt {
   tankTurret: PartTex;
   spiderBody: PartTex;
   spiderLeg: PartTex;
+  spiderTurret: PartTex;
   heliBody: PartTex;
   heliRotor: PartTex;
   rotorDisc: PartTex;
@@ -380,8 +407,9 @@ export function makeUnitArt(renderer: Renderer): UnitArt {
     tankTracks: [0, 1].map((ph) => part(72, tankTracks(ph))),
     tankHull: part(72, tankHull(), 4),
     tankTurret: part(96, tankTurret(), 4),
-    spiderBody: part(84, spiderBody(), 4),
-    spiderLeg: part(96, spiderLeg(), 3),
+    spiderBody: part(76, spiderBody(), 4),
+    spiderLeg: part(112, spiderLeg(), 3),
+    spiderTurret: part(80, spiderTurret(), 4),
     heliBody: part(116, heliBody(), 4),
     heliRotor: part(116, heliRotor()),
     rotorDisc: part(116, rotorDisc()),

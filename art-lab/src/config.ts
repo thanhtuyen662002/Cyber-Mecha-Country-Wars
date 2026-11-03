@@ -39,7 +39,7 @@ export interface UnitDef {
 export const UNITS: Record<UnitKey, UnitDef> = {
   infantry: { key: 'infantry', name: 'Infantry', gift: 'Chat (free)', tier: 0, hp: 40, speed: 46, range: 150, dmg: 4, fireInterval: 0.45, radius: 11, air: false, weapon: 'bullet' },
   drone: { key: 'drone', name: 'Kamikaze Drone', gift: 'Rose (1 coin)', tier: 1, hp: 25, speed: 150, range: 18, dmg: 70, fireInterval: 1, radius: 13, air: true, weapon: 'kamikaze' },
-  tank: { key: 'tank', name: 'Light Tank', gift: 'Tier 2 gift', tier: 2, hp: 260, speed: 38, range: 260, dmg: 45, fireInterval: 1.6, radius: 28, air: false, weapon: 'shell' },
+  tank: { key: 'tank', name: 'Light Tank', gift: 'Tier 2 gift', tier: 2, hp: 260, speed: 38, range: 260, dmg: 45, fireInterval: 1.6, radius: 26, air: false, weapon: 'shell' },
   spider: { key: 'spider', name: 'Spider Mech', gift: 'Tier 3 gift', tier: 3, hp: 380, speed: 52, range: 230, dmg: 9, fireInterval: 0.16, radius: 34, air: false, weapon: 'laser' },
   heli: { key: 'heli', name: 'Attack Heli', gift: 'Tier 3 gift', tier: 3, hp: 300, speed: 85, range: 330, dmg: 30, fireInterval: 0.9, radius: 40, air: true, weapon: 'rocket' },
   titan: { key: 'titan', name: 'Mecha Titan', gift: 'Tier 5 gift', tier: 5, hp: 4200, speed: 24, range: 420, dmg: 26, fireInterval: 0.08, radius: 80, air: false, weapon: 'titan' },

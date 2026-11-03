@@ -21,13 +21,13 @@ npm run dev        # mở http://localhost:5173
 
 | Nhóm | Nội dung |
 | --- | --- |
-| Đơn vị (6) | Bộ binh, Drone tự sát, Xe tăng nhẹ (tháp pháo xoay riêng, xích chạy, vết xích), Nhện máy (6 chân bước), Trực thăng (cánh quạt, đuôi, bóng đổ xa), Mecha Titan (bước chân, lõi phát sáng, tia railgun, loạt tên lửa) |
+| Đơn vị (6) | Bộ binh, Drone tự sát, Xe tăng nhẹ (tháp pháo xoay riêng, xích chạy, vết xích), Nhện máy (robot 4 chân thủy lực, tháp pháo đôi xoay riêng), Trực thăng (cánh quạt, đuôi, bóng đổ xa), Mecha Titan (bước chân, lõi phát sáng, tia railgun, loạt tên lửa) |
 | Pháo đài | Lục giác, 6 tháp góc, lõi phát sáng, khiên năng lượng; bị phá thì nổ lớn rồi dựng lại |
-| Địa hình (4) | Rừng rậm (tán cây đung đưa, tia nắng, đom đóm), Băng (hồ băng nứt, ánh lóe, đơn vị trượt), Đầm lầy độc (hồ phát sáng bằng shader GLSL, bong bóng, hơi độc), Thành phố đổ nát (đường, nhà sập, xe cháy, lửa, biển neon nhấp nháy) |
+| Địa hình (4) | Mỗi bản đồ có thêm đồ vật: hố bom, bao cát, chướng ngại chống tăng, dây thép gai, thùng hàng, viền tối. Rừng rậm (phế tích đá, boongke, đá rêu, khúc gỗ, bụi cây, tán cây đung đưa, tia nắng, đom đóm), Băng (thông phủ tuyết, trạm nghiên cứu, bồn nhiên liệu, hồ băng nứt, ánh lóe, đơn vị trượt), Đầm lầy độc (cây chết, xác mech chìm, đường ống, thùng độc, lau sậy, hồ phát sáng bằng shader GLSL, bong bóng, hơi độc), Thành phố đổ nát (đường, nhà sập, mái có máy lạnh, pin mặt trời, bãi trực thăng, chốt chặn ở ngã tư, đèn pha quét, xe cháy, lửa, biển neon nhấp nháy) |
 | Thời tiết (5) | Mưa lớn (giọt + bắn nước), Giông sét (tia sét đánh vào đơn vị cao nhất, chớp màn hình, sấm), Bão tuyết, Sương mù, Gió mạnh (vệt gió, lá bay, khói và máy bay bị đẩy) |
-| Hiệu ứng | Nổ theo bậc (tia lửa → cầu lửa, khói, mảnh vỡ → sóng xung kích, hố bom), chớp nòng, đạn vạch, laser, tên lửa có khói, xác xe cháy, vết cháy lưu trên đất, rung màn hình, hit-stop, bloom toàn màn hình, shockwave |
+| Hiệu ứng | Nổ nhiều tầng theo bậc (chớp sáng, cầu lửa đổi màu, tia lửa, mảnh văng có độ cao, vòng bụi, cột khói bốc lên, tàn lửa, nổ phụ, sóng nhiệt, chớp màn hình, hố bom), chớp nòng, đạn vạch, laser, tên lửa có khói, xác xe cháy, vết cháy lưu trên đất, rung màn hình, hit-stop, bloom toàn màn hình, shockwave |
 | Khoảnh khắc donate | Gọi Titan: camera zoom, slow-motion, băng rôn cut-in kèm tên người tặng |
-| Âm thanh | Tổng hợp bằng Web Audio (bật nút Sound), giới hạn 16 tiếng cùng lúc |
+| Âm thanh, nhạc | Tổng hợp bằng Web Audio (bật nút Sound): hiệu ứng giới hạn 16 tiếng cùng lúc, nhạc nền chiến đấu Rê thứ 132 BPM tự mạnh dần theo trận (đông quân thêm trống, có Titan thêm trống taiko) |
 | Kiểm tra tải | Nút "Stress: fill to 250 units", bộ đếm FPS/hạt, tự giảm hạt khi FPS < 50 |
 
 ## Bảng điều khiển
