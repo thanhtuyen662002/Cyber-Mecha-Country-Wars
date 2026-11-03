@@ -23,6 +23,17 @@ Midjourney thêm: `--ar 1:1 --style raw --v 7 --no perspective, isometric, scene
 
 Leonardo: model Phoenix hoặc Lightning XL, preset "Game Asset" hoặc "Concept Art", bật Transparency, tỷ lệ 1:1.
 
+### Leonardo bản miễn phí (Oscar đang dùng)
+
+Bản free không có preset "Game Asset" và không có nền trong suốt. Cách làm:
+
+- Style: **None** hoặc **3D Render**. Tránh các style Pop Art, vì chúng ra pixel art.
+- Đưa góc nhìn lên **đầu** prompt: `bird's eye view from directly overhead, top-down shooter game sprite, ...`
+- Thay "isolated on plain flat background" bằng `on a solid pure magenta background`. Claude sẽ tách nền hồng bằng code, Oscar chỉ cần gửi ảnh vào thread.
+- Bật Negative Prompt (Advanced Settings): `isometric, perspective, side view, front view, 3/4 view, standing pose, cast shadow, pixel art, text`
+- Ảnh địa hình: bật **Tiling** trong Advanced Settings.
+- Token có hạn (khoảng 20 token cho 4 ảnh), nên ưu tiên Mecha Titan, pháo đài, trực thăng và 1 địa hình. Bộ binh và drone giữ bản vẽ bằng code.
+
 ## Danh sách ảnh cần tạo
 
 | File (đặt trong `art-lab/public/art/`) | Đơn vị | Prompt (trước đuôi chung) |
