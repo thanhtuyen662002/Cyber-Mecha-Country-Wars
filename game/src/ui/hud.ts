@@ -120,6 +120,16 @@ export class Hud {
   private cutName: Text;
   private cutFlag: Sprite;
   private cutTag: Text;
+  private cutInfo: Text;
+  private cutCode: Text;
+  private cutGhosts: Text[] = [];
+  private cutFrame = new Container();
+  private cutRet = new Graphics();
+  private cutRet2 = new Graphics();
+  private cutBar = new Graphics();
+  private cutSweep: Sprite;
+  private cutFull = '';
+  private cutColor = 0xffffff;
   private cutT = 0;
   private cutDur = 0;
   private cutPortrait: Portrait | null = null;
@@ -214,13 +224,33 @@ export class Hud {
     this.layer.addChild(this.ticker);
 
     // cut-in
-    this.cutTitle = new Text({ text: '', style: tt(84, 0xffffff) });
-    this.cutName = new Text({ text: '', style: st(48, 0xffe27a) });
-    this.cutTag = new Text({ text: '', style: tt(20, 0xffffff) });
-    this.cutTag.anchor.set(0.5);
+    // cut-in: holographic alert frame (built per call in cutIn)
+    this.cutTitle = new Text({ text: '', style: tt(64, 0xffffff) });
+    this.cutName = new Text({ text: '', style: st(40, 0xffe27a) });
+    this.cutTag = new Text({ text: '', style: tt(18, 0xffffff) });
+    this.cutInfo = new Text({ text: '', style: tt(16, 0x9fe4ff, { dropShadow: false }) });
+    this.cutCode = new Text({ text: '', style: tt(12, 0x9fe4ff, { stroke: { width: 0, color: 0 }, dropShadow: false }) });
     this.cutFlag = new Sprite(flags.get('XX'));
-    for (const t of [this.cutTitle, this.cutName, this.cutFlag]) t.anchor.set(0.5);
-    this.cine.addChild(this.cutBand, this.cutTitle, this.cutName, this.cutFlag, this.cutTag);
+    this.cutFlag.anchor.set(0, 0.5);
+    for (const t of [this.cutTitle, this.cutName, this.cutTag, this.cutInfo]) t.anchor.set(0, 0.5);
+    this.cutCode.anchor.set(1, 0.5);
+    this.cutCode.alpha = 0.55;
+    for (const c of [0xff3df0, 0x3dfcff]) {
+      const g = new Text({ text: '', style: tt(64, c, { stroke: { width: 0, color: 0 }, dropShadow: false }) });
+      g.anchor.set(0, 0.5);
+      g.blendMode = 'add';
+      g.alpha = 0.7;
+      this.cutGhosts.push(g);
+    }
+    this.cutSweep = new Sprite(fx.beam);
+    this.cutSweep.anchor.set(0.5);
+    this.cutSweep.rotation = Math.PI / 2;
+    this.cutSweep.blendMode = 'add';
+    this.cutSweep.alpha = 0.22;
+    this.cutRet.blendMode = 'add';
+    this.cutRet2.blendMode = 'add';
+    this.cutFrame.addChild(this.cutBand, this.cutRet2, this.cutRet, this.cutSweep, ...this.cutGhosts, this.cutTitle, this.cutTag, this.cutInfo, this.cutBar, this.cutFlag, this.cutName, this.cutCode);
+    this.cine.addChild(this.cutFrame);
     this.cine.visible = false;
     this.guide.visible = false;
 
@@ -263,44 +293,113 @@ export class Hud {
   cutIn(tier: number, key: UnitKey, unitName: string, who: string, code: string, color: number, dur: number) {
     this.cutT = 0;
     this.cutDur = dur;
-    const y0 = tier >= 5 ? 740 : 800;
-    const h = tier >= 5 ? 380 : 280;
+    const big = tier >= 5;
+    const accent = tier >= 6 ? GOLD : color;
+    this.cutColor = accent;
+    const h = big ? 400 : 330;
+    const cy = 960;
+    const y0 = cy - h / 2, x0 = 20, w = W - 40, c = 44;
+    const R = h * 0.38, rx = 200;
+    this.cutFrame.pivot.set(0, cy);
+    this.cutFrame.position.set(0, cy);
+
+    // ---- static frame
     const b = this.cutBand.clear();
-    b.poly([0, y0 + 60, W, y0, W, y0 + h, 0, y0 + h + 60]).fill({ color: 0x03070f, alpha: 0.82 });
-    // hex grid + scanlines inside the band
-    for (let gy = y0 + 20; gy < y0 + h + 40; gy += 34)
-      for (let gx = (Math.floor((gy - y0) / 34) % 2) * 20; gx < W; gx += 40) {
-        const yy = gy - (gx / W) * 60 + 30;
-        if (yy < y0 + 70 - (gx / W) * 60 || yy > y0 + h + 50 - (gx / W) * 60) continue;
-        const r = 12, pts: number[] = [];
-        for (let k = 0; k < 6; k++) pts.push(gx + Math.cos((k / 6) * Math.PI * 2) * r, yy + Math.sin((k / 6) * Math.PI * 2) * r);
-        b.poly(pts).stroke({ width: 1, color, alpha: 0.12 });
+    const frame = [x0 + c, y0, x0 + w - c, y0, x0 + w, y0 + c, x0 + w, y0 + h - c, x0 + w - c, y0 + h, x0 + c, y0 + h, x0, y0 + h - c, x0, y0 + c];
+    b.poly(frame).fill({ color: 0x030810, alpha: 0.9 });
+    b.poly(frame).fill({ color: accent, alpha: 0.05 });
+    // hex grid on the data side
+    for (let gy = y0 + 18, row = 0; gy < y0 + h - 10; gy += 26, row++)
+      for (let gx = 390 + (row % 2) * 15; gx < x0 + w - 20; gx += 30) {
+        const pts: number[] = [];
+        for (let k = 0; k < 6; k++) pts.push(gx + Math.cos((k / 6) * Math.PI * 2 + Math.PI / 6) * 9, gy + Math.sin((k / 6) * Math.PI * 2 + Math.PI / 6) * 9);
+        b.poly(pts).stroke({ width: 1, color: accent, alpha: 0.07 });
       }
-    for (let yy = y0; yy < y0 + h + 60; yy += 5) b.rect(0, yy, W, 1).fill({ color: 0x000000, alpha: 0.18 });
-    b.poly([0, y0 + 52, W, y0 - 8, W, y0 + 4, 0, y0 + 64]).fill(color);
-    b.poly([0, y0 + h + 52, W, y0 + h - 8, W, y0 + h + 4, 0, y0 + h + 64]).fill(color);
-    // chevrons
-    for (let k = 0; k < 6; k++) b.poly([W - 60 - k * 26, y0 + 30, W - 46 - k * 26, y0 + 30, W - 34 - k * 26, y0 + 44, W - 46 - k * 26, y0 + 58, W - 60 - k * 26, y0 + 58, W - 48 - k * 26, y0 + 44]).fill({ color, alpha: 0.25 + k * 0.12 });
-    this.cutTag.text = `▶ INCOMING  ·  TIER ${tier}  ${'★'.repeat(Math.max(1, tier - 2))}`;
-    this.cutTag.style.fill = tier >= 6 ? GOLD : color;
-    this.cutTag.y = y0 + h * 0.18 + 30;
-    // the unit itself, big, on the left of the banner
+    for (let yy = y0 + 3; yy < y0 + h - 3; yy += 4) b.rect(x0 + 6, yy, w - 12, 1).fill({ color: 0x000000, alpha: 0.2 });
+    // double neon border
+    b.poly(frame).stroke({ width: 3, color: accent, alpha: 0.95 });
+    const inset = frame.map((v, i) => (i % 2 ? cy + (v - cy) * ((h - 20) / h) : W / 2 + (v - W / 2) * ((w - 20) / w)));
+    b.poly(inset).stroke({ width: 1, color: accent, alpha: 0.35 });
+    // heavy corner brackets
+    const br = 46;
+    for (const [px, py, sx, sy] of [[x0, y0 + c, 1, 1], [x0 + w, y0 + c, -1, 1], [x0, y0 + h - c, 1, -1], [x0 + w, y0 + h - c, -1, -1]] as const) {
+      b.moveTo(px, py + sy * br).lineTo(px, py).lineTo(px + sx * c, py - sy * c).lineTo(px + sx * (c + br), py - sy * c).stroke({ width: 6, color: accent, alpha: 1 });
+    }
+    // top label plate
+    b.poly([x0 + c + 20, y0, x0 + c + 300, y0, x0 + c + 284, y0 + 16, x0 + c + 36, y0 + 16]).fill({ color: accent, alpha: 0.9 });
+    // divider with ticks between the radar and the data
+    b.moveTo(370, y0 + 24).lineTo(370, y0 + h - 24).stroke({ width: 2, color: accent, alpha: 0.6 });
+    for (let yy = y0 + 34; yy < y0 + h - 30; yy += 14) b.rect(364, yy, (yy - y0) % 56 === 34 % 56 ? 12 : 6, 2).fill({ color: accent, alpha: 0.6 });
+    // radar backdrop + crosshair
+    b.circle(rx, cy, R + 26).fill({ color: 0x000000, alpha: 0.45 });
+    b.circle(rx, cy, R).stroke({ width: 2, color: accent, alpha: 0.5 });
+    b.circle(rx, cy, R * 0.55).stroke({ width: 1, color: accent, alpha: 0.3 });
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) b.moveTo(rx + dx * (R + 34), cy + dy * (R + 34)).lineTo(rx + dx * (R - 12), cy + dy * (R - 12)).stroke({ width: 2, color: accent, alpha: 0.8 });
+    // right-edge chevrons
+    for (let k = 0; k < 5; k++) {
+      const x = x0 + w - 34 - k * 22, yy = y0 + 34;
+      b.poly([x, yy, x + 12, yy, x + 22, yy + 12, x + 12, yy + 24, x, yy + 24, x + 10, yy + 12]).fill({ color: accent, alpha: 0.2 + k * 0.15 });
+    }
+    // hazard stripes for the big ones
+    if (big)
+      for (let x = 400; x < x0 + w - 60; x += 28) b.poly([x, y0 + h - 22, x + 14, y0 + h - 22, x + 4, y0 + h - 8, x - 10, y0 + h - 8]).fill({ color: accent, alpha: 0.55 });
+
+    // ---- rotating radar rings
+    const r1 = this.cutRet.clear();
+    for (let k = 0; k < 3; k++) r1.arc(0, 0, R + 14, (k / 3) * Math.PI * 2, (k / 3) * Math.PI * 2 + 1.4).stroke({ width: 4, color: accent, alpha: 0.9 });
+    for (let k = 0; k < 36; k++) {
+      const a = (k / 36) * Math.PI * 2, l = k % 3 ? 5 : 11;
+      r1.moveTo(Math.cos(a) * (R + 20), Math.sin(a) * (R + 20)).lineTo(Math.cos(a) * (R + 20 + l), Math.sin(a) * (R + 20 + l)).stroke({ width: 1.5, color: accent, alpha: 0.7 });
+    }
+    r1.position.set(rx, cy);
+    const r2 = this.cutRet2.clear();
+    for (let k = 0; k < 12; k++) r2.arc(0, 0, R - 8, (k / 12) * Math.PI * 2, (k / 12) * Math.PI * 2 + 0.3).stroke({ width: 2, color: accent, alpha: 0.6 });
+    r2.moveTo(0, 0).lineTo(R - 8, 0).stroke({ width: 2, color: accent, alpha: 0.8 }); // radar sweep arm
+    r2.position.set(rx, cy);
+
+    // ---- unit hologram in the radar
     this.cutPortrait?.destroy();
-    this.cutPortrait = new Portrait(key === 'strike' ? 'bomber' : key, color, tier >= 5 ? 320 : 240, this.art, this.fx);
-    this.cutPortrait.root.y = y0 + h / 2 + 30;
-    this.cine.addChildAt(this.cutPortrait.root, 1);
-    this.cutTitle.text = unitName.toUpperCase();
-    this.cutTitle.style.fontSize = tier >= 5 ? 78 : 60;
-    this.cutTitle.style.fill = tier >= 6 ? 0xffd34d : color;
-    this.cutTitle.scale.set(Math.min(1, 600 / this.cutTitle.width));
-    this.cutName.text = `@${who} called it in!`;
-    this.cutName.style.fontSize = tier >= 5 ? 40 : 32;
-    this.cutName.scale.set(Math.min(1, 520 / this.cutName.width));
+    const pk = key === 'strike' ? 'bomber' : key;
+    this.cutPortrait = new Portrait(pk, accent, R * 1.6, this.art, this.fx);
+    this.cutPortrait.root.position.set(rx, cy);
+    this.cutFrame.addChildAt(this.cutPortrait.root, 3);
+
+    // ---- text block
+    const def = UNITS[key];
+    const cls = key === 'strike' ? 'AIR STRIKE' : key === 'orbital' ? 'ORBITAL STRIKE' : { inf: 'INFANTRY', vehicle: 'ARMOR', mech: 'MECH', air: 'AIRCRAFT' }[def.cls];
+    const tx = 400;
+    this.cutTag.text = `▲ INCOMING DEPLOYMENT  //  TIER ${tier}`;
+    this.cutTag.style.fill = accent;
+    this.cutTag.position.set(tx, y0 + 50);
+    this.cutFull = unitName.toUpperCase();
+    this.cutTitle.style.fontSize = big ? 70 : 58;
+    this.cutTitle.style.fill = 0xffffff;
+    this.cutTitle.text = this.cutFull;
+    const sc = Math.min(1, 610 / this.cutTitle.width);
+    for (const t of [this.cutTitle, ...this.cutGhosts]) {
+      t.style.fontSize = this.cutTitle.style.fontSize;
+      t.text = this.cutFull;
+      t.scale.set(sc);
+      t.position.set(tx, cy - (big ? 46 : 38));
+    }
+    this.cutInfo.text = `CLASS: ${cls}   THREAT: ${'▮'.repeat(tier + 1)}${'▯'.repeat(Math.max(0, 6 - tier))}`;
+    this.cutInfo.style.fill = accent;
+    this.cutInfo.position.set(tx, cy + (big ? 18 : 12));
+    this.cutBar.position.set(tx, cy + (big ? 44 : 36));
     this.cutFlag.texture = this.flags.get(code);
-    this.cutFlag.scale.set(tier >= 5 ? 0.9 : 0.7);
-    this.cutTitle.y = y0 + h * 0.42 + 24;
-    this.cutName.y = y0 + h * 0.74 + 24;
-    this.cutFlag.y = this.cutName.y;
+    this.cutFlag.scale.set(big ? 0.62 : 0.52);
+    this.cutFlag.position.set(tx, y0 + h - (big ? 72 : 60));
+    this.cutName.text = `@${who}  CALLED IT IN`;
+    this.cutName.style.fontSize = big ? 40 : 34;
+    this.cutName.scale.set(1);
+    this.cutName.scale.set(Math.min(1, 540 / this.cutName.width));
+    this.cutName.position.set(tx + (big ? 80 : 68), this.cutFlag.y);
+    this.cutCode.text = `SAT-LINK ${(Math.random() * 0xffff) | 0} // AUTH ${code}-${tier}${(Math.random() * 900 + 100) | 0}`;
+    this.cutCode.position.set(x0 + w - 50, y0 + h - (big ? 36 : 26));
+    this.cutSweep.height = 40;
+    this.cutSweep.width = h - 20;
+    this.cutSweep.tint = accent;
+    this.cutSweep.y = cy;
     this.cine.visible = true;
   }
 
@@ -435,21 +534,49 @@ export class Hud {
 
   // ------------------------------------------------------------ per frame
   update(dt: number, game: Game, status: LiveStatus | 'sim') {
-    // cut-in animation
+    // cut-in animation: frame snaps open, title decrypts with a glitch, energy bar charges
     if (this.cine.visible) {
       this.cutT += dt;
       const p = this.cutT;
-      const slide = ease((p - 0.05) * 4);
-      const out = ease((p - (this.cutDur - 0.35)) * 3);
-      this.cutTitle.x = lerp(-600, W / 2 + 110, slide) + out * (W + 600);
-      this.cutName.x = lerp(W + 600, W / 2 + 150, slide) - out * (W + 600);
-      this.cutFlag.x = this.cutName.x - this.cutName.width / 2 - 60;
-      this.cutTag.x = this.cutTitle.x;
-      this.cutTag.alpha = slide * (1 - out);
-      this.cutBand.alpha = Math.min(1, p * 6) * (1 - out);
+      const open = ease(p * 5);
+      const out = ease((p - (this.cutDur - 0.3)) * 4);
+      this.cutFrame.scale.y = Math.max(0.01, open * (1 - out));
+      this.cutFrame.alpha = Math.min(1, p * 8) * (1 - out * 0.5);
+      this.cutRet.rotation += dt * 1.2;
+      this.cutRet2.rotation -= dt * 2.4;
+      // title: random glyphs resolve left-to-right
+      const rev = Math.max(0, Math.min(1, (p - 0.12) / 0.5));
+      const n = Math.floor(this.cutFull.length * rev);
+      const glyphs = '#%&@01X/<>=*';
+      let txt = this.cutFull.slice(0, n);
+      for (let i = n; i < this.cutFull.length; i++) txt += this.cutFull[i] === ' ' ? ' ' : glyphs[(Math.random() * glyphs.length) | 0];
+      if (this.cutTitle.text !== txt) for (const t of [this.cutTitle, ...this.cutGhosts]) t.text = txt;
+      const glitch = p < 0.75 || Math.random() < 0.04 ? 1 : 0;
+      this.cutGhosts.forEach((g, i) => {
+        g.x = this.cutTitle.x + (i ? 1 : -1) * (glitch ? 3 + Math.random() * 7 : 2);
+        g.y = this.cutTitle.y + (glitch ? (Math.random() - 0.5) * 4 : 0);
+        g.alpha = glitch ? 0.75 : 0.35;
+      });
+      // text slides in from the right, staggered
+      const slideIn = (d: number) => (1 - ease((p - d) * 5)) * 120;
+      this.cutTag.x = 400 + slideIn(0.08);
+      this.cutTag.alpha = Math.min(1, (p - 0.08) * 6);
+      this.cutInfo.x = 400 + slideIn(0.3);
+      this.cutInfo.alpha = Math.min(1, (p - 0.3) * 6);
+      this.cutFlag.x = 400 + slideIn(0.4);
+      this.cutName.x = this.cutFlag.x + this.cutFlag.width + 16;
+      this.cutFlag.alpha = this.cutName.alpha = Math.min(1, (p - 0.4) * 6);
+      // energy bar
+      const fill = ease((p - 0.3) / 0.9);
+      const bw = 610;
+      this.cutBar.clear().rect(0, 0, bw, 14).fill({ color: 0x000000, alpha: 0.6 }).stroke({ width: 1.5, color: this.cutColor, alpha: 0.6 });
+      for (let x = 0; x < bw * fill - 6; x += 10) this.cutBar.poly([x + 3, 3, x + 10, 3, x + 7, 11, x, 11]).fill({ color: this.cutColor, alpha: 0.95 });
+      // scanning light across the frame
+      this.cutSweep.x = 20 + ((p * 900) % (W + 200)) - 100;
       if (this.cutPortrait) {
-        this.cutPortrait.root.x = lerp(-300, 200, ease((p - 0.1) * 3.5)) - out * 700;
-        this.cutPortrait.root.alpha = 1 - out;
+        const k = ease((p - 0.1) * 4);
+        this.cutPortrait.root.scale.set(0.6 + k * 0.4);
+        this.cutPortrait.root.alpha = k * (Math.random() < 0.05 && p < 1 ? 0.4 : 1);
         this.cutPortrait.update(dt);
       }
       if (p > this.cutDur) this.cine.visible = false;
