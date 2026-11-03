@@ -1,0 +1,10 @@
+{
+  "tierMinCoins": [0, 1, 10, 100, 500, 5000, 30000],
+  "seedCountries": ["US", "GB", "CA", "AU"],
+  "roundSeconds": 900,
+  "likesPerCrate": 1000,
+  "sharesPerCrate": 10,
+  "liveUrls": ["ws://localhost:21213/", "ws://localhost:21214/"],
+  "refreshHours": 6,
+  "heapLimitMB": 1500
+}

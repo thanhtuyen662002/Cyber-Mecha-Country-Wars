@@ -1,0 +1,375 @@
+// Game rules on top of the World: what each TikTok action does, rounds, weather schedule,
+// CPU reinforcements, supply-drop triggers, season stats and the 30-second save.
+import { TERRAINS, type TerrainKey, WEATHERS, type WeatherKey, pick, rand } from '../core/config';
+import { COUNTRY_BY_CODE, parseCountry } from '../core/countries';
+import { TIER_UNITS, UNITS, UNIT_CMDS, type UnitKey, tierOf } from '../core/units';
+import type { EventQueue, GameEvent } from '../net/events';
+import { load, save } from '../sys/persist';
+import { type Player, Players, dayKey, rankOf } from './players';
+import type { Faction, World } from './world';
+
+export interface GameConfig {
+  roundSeconds: number;
+  victorySeconds: number;
+  seedCountries: string[];
+  /** seconds without live events before CPU reinforcements ramp up */
+  idleSeconds: number;
+  likesPerCrate: number;
+  sharesPerCrate: number;
+  chatSpawnCooldown: number;
+  eventsPerTick: number;
+}
+
+export const DEFAULT_CONFIG: GameConfig = {
+  roundSeconds: 15 * 60,
+  victorySeconds: 12,
+  seedCountries: ['US', 'GB', 'CA', 'AU'],
+  idleSeconds: 45,
+  likesPerCrate: 1000,
+  sharesPerCrate: 10,
+  chatSpawnCooldown: 15,
+  eventsPerTick: 8,
+};
+
+export interface RoundSummary {
+  n: number;
+  ranking: { code: string; name: string; score: number; kills: number; color: number }[];
+  mvp: Player | null;
+  topDonor: Player | null;
+}
+
+export interface SeasonStats {
+  key: string; // YYYY-MM
+  countries: Record<string, { wins: number; coins: number }>;
+}
+
+const SAVE_KEY = 'state-v1';
+
+export class Game {
+  readonly players = new Players();
+  round = { n: 1, timeLeft: 900, state: 'battle' as 'battle' | 'victory', victoryT: 0, terrainIdx: 0 };
+  weather: WeatherKey = 'clear';
+  nextWeather: WeatherKey | null = null;
+  weatherIn = 120;
+  season: SeasonStats = { key: new Date().toISOString().slice(0, 7), countries: {} };
+  lastSummary: RoundSummary | null = null;
+  likesRoom = 0;
+  sharesRoom = 0;
+  lastLive = -999; // world time of last real (non-simulated) event
+  private crateT = 120;
+  private botT = 2;
+  private saveT = 30;
+  private lockNotice = new Map<string, number>();
+  /** recent kill value between two countries, for the rivalry banner */
+  readonly rivalry = new Map<string, number>();
+
+  // UI hooks
+  onFeed: (text: string, code: string, color?: number) => void = () => {};
+  onTerrain: (key: TerrainKey) => void = () => {};
+  onWeather: (key: WeatherKey) => void = () => {};
+  onRoundEnd: (s: RoundSummary) => void = () => {};
+  onRoundStart: (n: number) => void = () => {};
+  onGift: (p: Player, f: Faction, gift: string, coins: number, count: number, unit: UnitKey) => void = () => {};
+
+  constructor(readonly world: World, private queue: EventQueue, readonly cfg: GameConfig = DEFAULT_CONFIG) {
+    this.round.timeLeft = cfg.roundSeconds;
+  }
+
+  get terrain(): TerrainKey {
+    return TERRAINS[this.round.terrainIdx % TERRAINS.length].key;
+  }
+
+  // ---------------------------------------------------------------- start / restore
+  async start() {
+    const saved = await load<any>(SAVE_KEY);
+    if (saved?.v === 1) {
+      this.players.restore(saved.players);
+      if (saved.season?.key === this.season.key) this.season = saved.season;
+      this.likesRoom = saved.likesRoom ?? 0;
+      this.sharesRoom = saved.sharesRoom ?? 0;
+      const fresh = Date.now() - saved.savedAt < 15 * 60 * 1000;
+      if (fresh && saved.round) {
+        this.round.n = saved.round.n;
+        this.round.terrainIdx = saved.round.terrainIdx;
+        this.round.timeLeft = Math.max(30, saved.round.timeLeft);
+        this.weather = saved.round.weather ?? 'clear';
+        this.onTerrain(this.terrain);
+        this.world.terrain = this.terrain;
+        this.world.restore(saved.world);
+        this.onWeather(this.weather);
+        this.onFeed(`Battle resumed: round ${this.round.n}`, 'XX', 0x9aa4b8);
+        this.seed();
+        return;
+      }
+      this.round.n = (saved.round?.n ?? 0) + 1;
+      this.round.terrainIdx = (saved.round?.terrainIdx ?? -1) + 1;
+    }
+    this.onTerrain(this.terrain);
+    this.world.newRound(this.terrain);
+    this.seed();
+    this.onWeather(this.weather);
+    this.onRoundStart(this.round.n);
+  }
+
+  private seed() {
+    for (const c of this.cfg.seedCountries) if (COUNTRY_BY_CODE.has(c) && this.world.slotted.length < 4) this.world.faction(c);
+  }
+
+  async persist() {
+    await save(SAVE_KEY, {
+      v: 1,
+      savedAt: Date.now(),
+      round: { n: this.round.n, terrainIdx: this.round.terrainIdx, timeLeft: this.round.state === 'battle' ? this.round.timeLeft : 0, weather: this.weather },
+      world: this.world.snapshot(),
+      players: this.players.serialize(),
+      season: this.season,
+      likesRoom: this.likesRoom,
+      sharesRoom: this.sharesRoom,
+    });
+  }
+
+  // ---------------------------------------------------------------- events
+  handle(e: GameEvent, simulated = false) {
+    const w = this.world;
+    if (!simulated) this.lastLive = w.time;
+    const p = this.players.get(e.uid, e.name, e.nick);
+    const home = () => (p.country ? w.faction(p.country) : w.merc);
+    switch (e.k) {
+      case 'chat': {
+        const code = parseCountry(e.text);
+        if (code) return this.join(p, code);
+        const cmd = e.text.trim().toLowerCase().split(/\s+/)[0];
+        const key = UNIT_CMDS.get(cmd);
+        if (key) {
+          p.pref[UNITS[key].tier] = key;
+          this.onFeed(`@${p.name} set next ${UNITS[key].tier === 0 ? 'free unit' : `tier ${UNITS[key].tier} gift`} → ${UNITS[key].name}`, p.country ?? 'XX');
+          return;
+        }
+        // any chat from a soldier = one rifleman (rate-limited per viewer)
+        if (p.country && w.time >= (p.nextChatSpawn ?? 0)) {
+          p.nextChatSpawn = w.time + this.cfg.chatSpawnCooldown;
+          w.spawn('infantry', home().id, p.name, p.uid, rankOf(p.coins));
+        }
+        return;
+      }
+      case 'gift': {
+        const total = e.coins * e.count;
+        this.players.addCoins(p, total);
+        const f = home();
+        const sc = (this.season.countries[f.code] ??= { wins: 0, coins: 0 });
+        sc.coins += total;
+        const tier = tierOf(e.coins);
+        const pref = p.pref[tier];
+        const key: UnitKey = pref && TIER_UNITS[tier].includes(pref) ? pref : this.autoPick(tier, f);
+        const maxN = tier >= 6 ? 3 : tier >= 4 ? 5 : 10;
+        const n = Math.min(e.count, maxN);
+        const extra = e.count - n;
+        for (let i = 0; i < n; i++) w.spawn(key, f.id, p.name, p.uid, rankOf(p.coins), undefined, i === n - 1 && extra > 0 ? 1 + Math.min(4, (extra / maxN) * 0.5) : 1);
+        if (tier >= 5) w.dropCrate(true, p.name);
+        this.onGift(p, f, e.gift, e.coins, e.count, key);
+        if (!p.country && tier >= 1 && (this.lockNotice.get('m' + p.uid) ?? -99) < this.world.time - 90 && (this.lockNotice.set('m' + p.uid, this.world.time), true)) this.onFeed(`@${p.name} fights as a MERCENARY: type your country code (us, uk, ca…) to join your nation!`, 'XX', 0xffd34d);
+        return;
+      }
+      case 'like': {
+        this.likesRoom += e.count;
+        p.likeAcc = (p.likeAcc ?? 0) + e.count;
+        if (p.likeAcc >= 100 && p.country) {
+          p.likeAcc -= 100;
+          w.spawn('infantry', home().id, p.name, p.uid, rankOf(p.coins));
+        }
+        if (this.likesRoom >= this.cfg.likesPerCrate) {
+          this.likesRoom -= this.cfg.likesPerCrate;
+          w.dropCrate();
+          this.onFeed(`${this.cfg.likesPerCrate.toLocaleString('en-US')} likes! Supply crate dropping`, 'XX', 0xff6fa8);
+        }
+        return;
+      }
+      case 'follow': {
+        w.spawn('sniper', home().id, p.name, p.uid, rankOf(p.coins));
+        this.onFeed(`@${p.name} followed → SNIPER deployed`, p.country ?? 'XX');
+        return;
+      }
+      case 'share': {
+        w.spawn('at', home().id, p.name, p.uid, rankOf(p.coins));
+        this.sharesRoom++;
+        if (this.sharesRoom >= this.cfg.sharesPerCrate) {
+          this.sharesRoom = 0;
+          w.dropCrate();
+        }
+        this.onFeed(`@${p.name} shared → ANTI-TANK deployed`, p.country ?? 'XX');
+        return;
+      }
+    }
+  }
+
+  private join(p: Player, code: string) {
+    if (this.lockNotice.size > 2000) this.lockNotice.clear();
+    const r = this.players.setCountry(p, code);
+    const def = COUNTRY_BY_CODE.get(code)!;
+    if (r === 'locked') {
+      if ((this.lockNotice.get(p.uid) ?? -99) < this.world.time - 60) {
+        this.lockNotice.set(p.uid, this.world.time);
+        this.onFeed(`@${p.name} already switched today: still fighting for ${COUNTRY_BY_CODE.get(p.country!)?.name}`, p.country!, 0x9aa4b8);
+      }
+      return;
+    }
+    const f = this.world.faction(code);
+    if (r === 'ok') {
+      this.onFeed(`@${p.name} joined ${def.name}!`, code, f.color);
+      this.world.spawn('infantry', f.id, p.name, p.uid, rankOf(p.coins));
+      p.nextChatSpawn = this.world.time + this.cfg.chatSpawnCooldown;
+    }
+  }
+
+  /** No preference: call the unit that counters what the enemy fields most. */
+  autoPick(tier: number, f: Faction): UnitKey {
+    const opts = TIER_UNITS[tier] ?? TIER_UNITS[1];
+    if (opts.length === 1) return opts[0];
+    const enemy = { inf: 0, vehicle: 0, mech: 0, air: 0 };
+    for (const o of this.world.factions) {
+      if (o.id === f.id) continue;
+      enemy.inf += o.cls.inf;
+      enemy.vehicle += o.cls.vehicle;
+      enemy.mech += o.cls.mech;
+      enemy.air += o.cls.air;
+    }
+    switch (tier) {
+      case 0:
+        return 'infantry';
+      case 1:
+        return enemy.inf > 25 && Math.random() < 0.6 ? 'flamer' : Math.random() < 0.6 ? 'drone' : 'flamer';
+      case 2:
+        if (enemy.air >= 4 || f.hurtBy.air > 300) return 'aa';
+        return enemy.vehicle + enemy.mech > enemy.inf * 0.3 ? (Math.random() < 0.5 ? 'spider' : 'tank') : Math.random() < 0.6 ? 'tank' : 'spider';
+      case 4: {
+        const aa = this.world.units.filter((u) => u.def.key === 'aa' && u.fid !== f.id).length;
+        return aa >= 3 ? 'robot' : Math.random() < 0.5 ? 'bomber' : 'robot';
+      }
+      default:
+        return pick(opts);
+    }
+  }
+
+  // ---------------------------------------------------------------- tick
+  tick(dt: number) {
+    const w = this.world;
+    // drain the event queue at a fixed rate
+    for (let i = 0; i < this.cfg.eventsPerTick; i++) {
+      const e = this.queue.take();
+      if (!e) break;
+      this.handle(e, e.uid.startsWith('sim'));
+    }
+    if (this.round.state === 'victory') {
+      this.round.victoryT -= dt;
+      if (this.round.victoryT <= 0) this.newRound();
+      w.update(dt);
+      return;
+    }
+    this.round.timeLeft -= dt;
+    w.mult = this.round.timeLeft <= 60 ? 2 : 1;
+    w.update(dt);
+    this.bots(dt);
+    // weather schedule: forecast 15 s ahead (PLAN.md)
+    this.weatherIn -= dt;
+    if (!this.nextWeather && this.weatherIn <= 15) {
+      const opts = WEATHERS.map((x) => x.key).filter((k) => k !== this.weather);
+      this.nextWeather = this.weather !== 'clear' && Math.random() < 0.35 ? 'clear' : pick(opts.filter((k) => k !== 'clear'));
+    }
+    if (this.weatherIn <= 0 && this.nextWeather) {
+      this.weather = this.nextWeather;
+      this.nextWeather = null;
+      this.weatherIn = rand(180, 300);
+      this.onWeather(this.weather);
+    }
+    // random supply drops
+    this.crateT -= dt;
+    if (this.crateT <= 0) {
+      this.crateT = 120;
+      w.dropCrate();
+    }
+    // rivalry decay
+    for (const [k, v] of this.rivalry) {
+      const nv = v * (1 - dt * 0.03);
+      if (nv < 1) this.rivalry.delete(k);
+      else this.rivalry.set(k, nv);
+    }
+    // round end: time out, or one fortress left standing
+    const standing = w.slotted.filter((f) => f.fort?.alive);
+    if (this.round.timeLeft <= 0 || (w.slotted.length >= 2 && standing.length <= 1 && this.cfg.roundSeconds - this.round.timeLeft > 60)) this.endRound();
+    this.saveT -= dt;
+    if (this.saveT <= 0) {
+      this.saveT = 30;
+      void this.persist();
+    }
+  }
+
+  /** CPU reinforcements keep every fortress defended when chat is quiet (labelled CPU, never fake viewers). */
+  private bots(dt: number) {
+    const w = this.world;
+    this.botT -= dt;
+    if (this.botT > 0) return;
+    const idle = w.time - this.lastLive > this.cfg.idleSeconds;
+    this.botT = idle ? rand(0.8, 1.6) : rand(3, 5);
+    for (const f of w.slotted) {
+      const cap = idle ? 22 : 8;
+      if (f.units >= cap) continue;
+      const r = Math.random();
+      const key: UnitKey = r < 0.62 ? 'infantry' : r < 0.72 ? 'sniper' : r < 0.8 ? 'at' : r < 0.88 ? 'drone' : r < 0.93 ? 'flamer' : idle && r < 0.98 ? pick(['tank', 'aa', 'spider'] as UnitKey[]) : 'infantry';
+      w.spawn(key, f.id, '', '', 0);
+    }
+  }
+
+  noteKill(killerFid: number, victimFid: number, value: number) {
+    if (killerFid === victimFid || killerFid <= 0 || victimFid <= 0) return;
+    const [a, b] = killerFid < victimFid ? [killerFid, victimFid] : [victimFid, killerFid];
+    const k = `${a}|${b}`;
+    this.rivalry.set(k, (this.rivalry.get(k) ?? 0) + value);
+  }
+
+  topRivalry(): [Faction, Faction, number] | null {
+    let best: string | null = null, bv = 0;
+    for (const [k, v] of this.rivalry) if (v > bv) (bv = v), (best = k);
+    if (!best || bv < 300) return null;
+    const [a, b] = best.split('|').map(Number);
+    const fa = this.world.factions[a], fb = this.world.factions[b];
+    if (fa.slot < 0 || fb.slot < 0) return null;
+    return [fa, fb, bv];
+  }
+
+  endRound() {
+    if (this.round.state !== 'battle') return;
+    const w = this.world;
+    const ranking = w.factions
+      .filter((f) => f.id !== 0 && (f.slot >= 0 || f.score > 0))
+      .sort((a, b) => b.score - a.score)
+      .map((f) => ({ code: f.code, name: f.def.name, score: Math.round(f.score), kills: f.kills, color: f.color }));
+    if (ranking[0]) (this.season.countries[ranking[0].code] ??= { wins: 0, coins: 0 }).wins++;
+    const s: RoundSummary = { n: this.round.n, ranking, mvp: this.players.roundMvp(), topDonor: this.players.roundTopDonor() };
+    this.lastSummary = s;
+    this.round.state = 'victory';
+    this.round.victoryT = this.cfg.victorySeconds;
+    this.onRoundEnd(s);
+    void this.persist();
+  }
+
+  newRound() {
+    this.round.n++;
+    this.round.terrainIdx++;
+    this.round.state = 'battle';
+    this.round.timeLeft = this.cfg.roundSeconds;
+    this.players.resetRound();
+    this.rivalry.clear();
+    const seasonKey = new Date().toISOString().slice(0, 7);
+    if (seasonKey !== this.season.key) this.season = { key: seasonKey, countries: {} };
+    this.onTerrain(this.terrain);
+    this.world.newRound(this.terrain);
+    this.seed();
+    this.onRoundStart(this.round.n);
+    void this.persist();
+  }
+
+  emperor() {
+    const p = this.players.emperor();
+    return p && p.day === dayKey() ? p : null;
+  }
+}

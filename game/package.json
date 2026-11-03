@@ -1,0 +1,23 @@
+{
+  "name": "cmcw-game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cyber Mecha Country Wars: TikTok LIVE interactive war game (browser source)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:single": "vite build --mode single",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pixi-filters": "^6.1.5",
+    "pixi.js": "^8.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-singlefile": "^2.3.4"
+  }
+}
