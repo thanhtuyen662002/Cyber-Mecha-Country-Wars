@@ -262,6 +262,8 @@ Nguyên tắc số 1: người xem lướt qua trong 1 giây phải nhận ra ph
 
 Bước đầu tiên của phần đồ họa là 1 trang moodboard + concept cho 7 bậc đơn vị và 4 địa hình đầu tiên để Oscar duyệt trước khi làm asset thật.
 
+**Demo so sánh (03/11/2026):** thư mục `art-lab/` chứa cảnh thử 6 đơn vị, pháo đài, 4 địa hình, 5 thời tiết và hiệu ứng nổ, chạy được ở 2 chế độ: A vẽ bằng code, B dùng ảnh AI (prompt trong `docs/ART_PROMPTS.md`). Oscar xem và chọn hướng đồ họa từ demo này.
+
 ## Hiệu năng và ổn định 24/7: mọi thứ có trần, mọi lỗi tự hồi phục
 
 Mục tiêu đo được: giữ 60 FPS với 250 quân, 3.000 hạt, thời tiết và địa hình động trên máy stream của Oscar (i5 đời 12, RTX 3060), bộ nhớ không tăng quá 10% sau 72 giờ. Bản đồ lớn hơn màn hình nên thứ gì ngoài camera vẫn được tính toán nhưng không vẽ, hiệu ứng ngoài camera thì bỏ qua.
