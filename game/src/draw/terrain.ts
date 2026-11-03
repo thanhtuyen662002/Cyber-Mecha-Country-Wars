@@ -1,6 +1,6 @@
 // Procedural terrain: a baked ground texture (noise + painted features on a 2D canvas)
 // plus a small animated layer (trees swaying, toxic pools with a shader, fires, sparkles).
-import { Container, Filter, GlProgram, Sprite, Texture } from 'pixi.js';
+import { CanvasSource, Container, Filter, GlProgram, Sprite, Texture } from 'pixi.js';
 import { H, RESERVED, W, type TerrainKey, rand } from '../core/config';
 import type { FxTextures } from './fxTextures';
 import type { Particles } from '../fx/particles';
@@ -33,9 +33,14 @@ type RGB = [number, number, number];
 const hex = (c: string): RGB => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
 const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
+/** Ground texture supersampling: the camera zooms up to 1.7x, so paint above screen resolution. */
+const GS = 1.6;
+const hiTex = (cv: HTMLCanvasElement, resolution: number) => new Texture({ source: new CanvasSource({ resource: cv, resolution }) });
+
 function noiseGround(c1: string, c2: string, c3: string, scale: number, seed: number, detail = 18): HTMLCanvasElement {
-  // Painted at half resolution, upscaled with smoothing (4x cheaper).
-  const w = W / 2, h = H / 2;
+  // Noise painted at native resolution; the canvas itself is GS x larger so roads, rocks and
+  // props drawn on top stay crisp when the camera zooms in.
+  const w = W, h = H;
   const cv = document.createElement('canvas');
   cv.width = w;
   cv.height = h;
@@ -58,11 +63,12 @@ function noiseGround(c1: string, c2: string, c3: string, scale: number, seed: nu
   }
   ctx.putImageData(img, 0, 0);
   const full = document.createElement('canvas');
-  full.width = W;
-  full.height = H;
+  full.width = W * GS;
+  full.height = H * GS;
   const fc = full.getContext('2d')!;
   fc.imageSmoothingQuality = 'high';
-  fc.drawImage(cv, 0, 0, W, H);
+  fc.drawImage(cv, 0, 0, W * GS, H * GS);
+  fc.setTransform(GS, 0, 0, GS, 0, 0); // painters keep drawing in 1080x1920 coordinates
   return full;
 }
 
@@ -443,9 +449,10 @@ function poolMask(): Texture {
 function treeTexture(seed: number): Texture {
   const s = 180;
   const cv = document.createElement('canvas');
-  cv.width = s;
-  cv.height = s;
+  cv.width = s * 2;
+  cv.height = s * 2;
   const ctx = cv.getContext('2d')!;
+  ctx.scale(2, 2);
   let r = seed;
   const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647);
   for (let layer = 0; layer < 3; layer++) {
@@ -464,7 +471,7 @@ function treeTexture(seed: number): Texture {
       ctx.fill();
     }
   }
-  return Texture.from(cv);
+  return hiTex(cv, 2);
 }
 
 // ------------------------------------------------------------ public
@@ -478,7 +485,7 @@ export interface TerrainScene {
 
 export function buildTerrain(key: TerrainKey, fx: FxTextures, particles: Particles): TerrainScene {
   const painter = { jungle: paintJungle, ice: paintIce, swamp: paintSwamp, city: paintCity }[key];
-  const tex = Texture.from(painter());
+  const tex = hiTex(painter(), GS);
   const ground = new Sprite(tex);
   const under = new Container();
   const over = new Container();

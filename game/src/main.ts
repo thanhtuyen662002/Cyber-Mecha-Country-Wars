@@ -2,8 +2,8 @@
 // the camera director, effects, HUD and the 24/7 watchdog together.
 import { Application, Container, type Filter, Rectangle, Sprite } from 'pixi.js';
 import { AdvancedBloomFilter, ShockwaveFilter } from 'pixi-filters';
-import { H, SIM_DT, type TerrainKey, W, type WeatherKey, lerp, rand } from './core/config';
-import { UNITS, type UnitKey, setTierMin, tierOf } from './core/units';
+import { H, SIM_DT, type TerrainKey, W, type WeatherKey, lerp, pick, rand } from './core/config';
+import { UNITS, type UnitKey, setTierMin } from './core/units';
 import { makeFlags } from './draw/flags';
 import { makeFxTextures } from './draw/fxTextures';
 import { type TerrainScene, buildTerrain } from './draw/terrain';
@@ -15,7 +15,7 @@ import { EventQueue, flushStaleCombos } from './net/events';
 import { LiveSource } from './net/live';
 import { Simulator } from './net/sim';
 import { DEFAULT_CONFIG, Game, type GameConfig } from './sim/game';
-import { World } from './sim/world';
+import { type Unit, World } from './sim/world';
 import { wipe } from './sys/persist';
 import { Watchdog } from './sys/watchdog';
 import { DevPanel } from './ui/devpanel';
@@ -85,7 +85,7 @@ async function main() {
   screenFlash.alpha = 0;
   app.stage.addChild(view, weather.layer, screenFlash, hud.layer, hud.cine, hud.overlay, hud.guide);
 
-  const bloom = new AdvancedBloomFilter({ threshold: 0.62, bloomScale: 0.9, brightness: 1, blur: 6, quality: 4 });
+  const bloom = new AdvancedBloomFilter({ threshold: 0.72, bloomScale: 0.75, brightness: 1, blur: 4, quality: 4 });
   let shocks: ShockwaveFilter[] = [];
   let bloomOn = !params.has('nobloom');
   const applyFilters = () => {
@@ -123,7 +123,60 @@ async function main() {
   interface Shot { at: { x: number; y: number }; tier: number; dur: number; t: number }
   const shots: Shot[] = [];
   let shot: Shot | null = null;
-  let hot = { x: W / 2, y: H / 2, zoom: 1, hold: 0 };
+  type FocusKind = 'wide' | 'heat' | 'unit' | 'fort';
+  const focus: { kind: FocusKind; x: number; y: number; zoom: number; hold: number; unit: Unit | null } = { kind: 'wide', x: W / 2, y: H / 2, zoom: 1.05, hold: 2, unit: null };
+  let lastWide = 0;
+  const fortHp = new Map<number, number>();
+  const pickFocus = () => {
+    const now = world.time;
+    const set = (kind: FocusKind, x: number, y: number, zoom: number, hold: number, unit: Unit | null = null) =>
+      Object.assign(focus, { kind, x, y, zoom, hold, unit });
+    // fort damage since the last cut
+    let fortHit: { x: number; y: number; d: number } | null = null;
+    for (const f of world.slotted) {
+      const ft = f.fort;
+      if (!ft) continue;
+      const d = (fortHp.get(f.id) ?? ft.hp) - ft.hp;
+      fortHp.set(f.id, ft.hp);
+      if (ft.alive && d > 250 && (!fortHit || d > fortHit.d)) fortHit = { x: ft.x, y: ft.y, d };
+    }
+    if (game.round.state !== 'battle') return set('wide', W / 2, H / 2, 1, 3);
+    if (world.units.length < 3) {
+      // quiet moment: tour the fortresses instead of holding a static wide shot
+      const forts = world.slotted.map((f) => f.fort).filter((f) => f?.alive);
+      const f = forts.length ? pick(forts)! : null;
+      return f ? set('fort', f.x, f.y, 1.25, 4) : set('wide', W / 2, H / 2, 1, 3);
+    }
+    if (now - lastWide > 24) return (lastWide = now), set('wide', W / 2, H / 2, 1, 3.5);
+    const opts: (() => void)[] = [];
+    // a freshly deployed gift unit
+    const fresh = world.units.filter((u) => u.alive && u.def.tier >= 2 && now - u.born < 5 && u.def.key !== 'strike');
+    if (fresh.length && focus.kind !== 'unit') {
+      const u = fresh.reduce((a, b) => (b.def.tier > a.def.tier || (b.def.tier === a.def.tier && b.born > a.born) ? b : a));
+      return set('unit', u.x, u.y, u.def.tier >= 3 ? 1.5 : 1.42, 3.6, u);
+    }
+    if (fortHit && focus.kind !== 'fort') opts.push(() => set('fort', fortHit!.x, fortHit!.y, 1.32, 4));
+    // hottest fight: follow its strongest unit so the camera keeps moving with it
+    let bi = -1, bv = 0;
+    world.heat.forEach((v, i) => v > bv && ((bv = v), (bi = i)));
+    if (bi >= 0 && bv > 12 && focus.kind !== 'heat') {
+      const hx = ((bi % 6) + 0.5) * (W / 6), hy = (Math.floor(bi / 6) + 0.5) * (H / 10);
+      let best: Unit | null = null, bs = -1;
+      for (const u of world.units) {
+        if (!u.alive || u.def.key === 'strike') continue;
+        const d = Math.hypot(u.x - hx, u.y - hy);
+        if (d > 260) continue;
+        const sc = u.def.tier * 100 - d * 0.3;
+        if (sc > bs) (bs = sc), (best = u);
+      }
+      opts.push(() => set('heat', hx, hy, 1.38, 4.5, best));
+    }
+    // a random viewer's unit (viewers love seeing their own name on screen)
+    const named = world.units.filter((u) => u.alive && u.name && u.def.key !== 'strike');
+    if (named.length) opts.push(() => { const u = pick(named); set('unit', u.x, u.y, 1.45, 3.5, u); });
+    if (!opts.length) return set('wide', W / 2, H / 2, 1.08, 3);
+    pick(opts)();
+  };
 
   world.hooks = {
     feedKill: ({ killer, killerFid, victim }) => {
@@ -177,7 +230,7 @@ async function main() {
   game.onGift = (p, f, gift, coins, count, unit) => {
     if (coins * count >= 10 || count > 1) hud.pushFeed(`@${p.name} sent ${gift}${count > 1 ? ` x${count}` : ''} → ${unitLabel(unit)}`, f.code, f.color);
     // mid-tier gifts get a side card with the unit's picture (tier 4+ already get the full cut-in)
-    const t = tierOf(coins * count);
+    const t = UNITS[unit].tier;
     if (t >= 2 && t <= 3) hud.deployCard(unit, p.name, f.code, f.color);
   };
   const unitLabel = (k: UnitKey) => UNITS[k].name.toUpperCase();
@@ -200,7 +253,7 @@ async function main() {
   window.addEventListener('pointerdown', () => !sfx.enabled && !params.has('mute') && sfx.enable(true), { once: true });
 
   // ------------------------------------------------------------ main loop: fixed 30 Hz sim, interpolated render
-  let acc = 0, t = 0, heatT = 0, comboT = 0;
+  let acc = 0, t = 0, comboT = 0;
   let fpsAcc = 0, fpsN = 0, lowFps = 0, goodFps = 0;
   app.ticker.add((tk) => {
     watchdog.frame();
@@ -221,33 +274,28 @@ async function main() {
     if (shot) {
       shot.t += realDt;
       const p = shot.t;
-      tz = p < shot.dur - 0.5 ? (shot.tier >= 5 ? 1.7 : 1.45) : 1;
+      tz = p < shot.dur - 0.5 ? (shot.tier >= 5 ? 1.7 : 1.45) : 1.3;
       tx = shot.at.x;
       ty = shot.at.y;
       if (shot.tier >= 5) timeScale = p < 1.4 ? 0.3 : lerp(0.3, 1, Math.min(1, (p - 1.4) / 0.6));
-      if (p >= shot.dur) shot = null;
+      if (p >= shot.dur) (shot = null), (focus.hold = 0); // cut to fresh action right after
     } else {
-      heatT -= realDt;
-      hot.hold -= realDt;
-      if (heatT <= 0) {
-        heatT = 1;
-        let bi = -1, bv = 0;
-        world.heat.forEach((v, i) => v > bv && ((bv = v), (bi = i)));
-        if (hot.hold <= 0) {
-          if (bi >= 0 && bv > 25 && game.round.state === 'battle') {
-            hot = { x: ((bi % 6) + 0.5) * (W / 6), y: (Math.floor(bi / 6) + 0.5) * (H / 10), zoom: 1.22, hold: 5 };
-          } else hot = { x: W / 2, y: H / 2, zoom: 1, hold: 3 };
-        }
-      }
-      tz = hot.zoom;
-      tx = hot.x;
-      ty = hot.y;
+      // roaming director: keep cutting between the action so the stream never looks static
+      focus.hold -= realDt;
+      if (focus.unit && !focus.unit.alive) focus.hold = Math.min(focus.hold, 0.6);
+      if (focus.hold <= 0) pickFocus();
+      if (focus.unit?.alive) (focus.x = focus.unit.x), (focus.y = focus.unit.y);
+      // slow handheld drift on top of the framing
+      tz = focus.zoom + Math.sin(t * 0.31) * 0.03;
+      tx = focus.x + Math.sin(t * 0.23) * 40;
+      ty = focus.y + Math.cos(t * 0.17) * 60;
     }
-    const zk = Math.min(1, realDt * (shot ? 4 : 1.2));
+    const zk = Math.min(1, realDt * (shot ? 4 : 1.1));
+    const pk = Math.min(1, realDt * (shot ? 4 : 1.7));
     cam.zoom = lerp(cam.zoom, tz, zk);
     const half = 1 - 1 / cam.zoom;
-    cam.x = lerp(cam.x, Math.max(W / 2 - (W / 2) * half, Math.min(W / 2 + (W / 2) * half, tx)), zk);
-    cam.y = lerp(cam.y, Math.max(H / 2 - (H / 2) * half, Math.min(H / 2 + (H / 2) * half, ty)), zk);
+    cam.x = lerp(cam.x, Math.max(W / 2 - (W / 2) * half, Math.min(W / 2 + (W / 2) * half, tx)), pk);
+    cam.y = lerp(cam.y, Math.max(H / 2 - (H / 2) * half, Math.min(H / 2 + (H / 2) * half, ty)), pk);
     shake *= Math.pow(0.02, realDt);
     view.pivot.set(cam.x, cam.y);
     view.position.set(W / 2 + rand(-shake, shake) * 0.5, H / 2 + rand(-shake, shake) * 0.5);
@@ -307,7 +355,7 @@ async function main() {
 
   // debug hook for automated tests / screenshots
   (window as unknown as { cmcw: unknown }).cmcw = {
-    game, world, sim, queue, live, hud, setTerrain, setWeather,
+    game, world, sim, queue, live, hud, setTerrain, setWeather, cam, focus,
     step: (sec: number) => {
       for (let i = 0; i < sec * 30; i++) {
         game.tick(SIM_DT);
