@@ -185,7 +185,7 @@ export class World {
     this.stamp.addChild(this.stampSprite);
     BitmapFont.install({
       name: 'Tag',
-      style: { fontFamily: 'Arial', fontSize: 30, fontWeight: 'bold', fill: '#ffffff', stroke: { color: '#000000', width: 5 } },
+      style: { fontFamily: 'Rajdhani, Arial', fontSize: 32, fontWeight: 'bold', fill: '#ffffff', stroke: { color: '#02060c', width: 5 } },
       chars: [['a', 'z'], ['A', 'Z'], ['0', '9'], ' @._-:!→+%x×#()/'],
     });
     for (let i = 0; i < this.gw * this.gh; i++) this.grid.push([]);

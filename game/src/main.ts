@@ -1,5 +1,9 @@
 // Cyber Mecha Country Wars: entry point. Wires the event sources, the fixed-step simulation,
 // the camera director, effects, HUD and the 24/7 watchdog together.
+import '@fontsource/orbitron/latin-700.css';
+import '@fontsource/orbitron/latin-900.css';
+import '@fontsource/rajdhani/latin-600.css';
+import '@fontsource/rajdhani/latin-700.css';
 import { Application, Container, type Filter, Rectangle, Sprite } from 'pixi.js';
 import { AdvancedBloomFilter, ShockwaveFilter } from 'pixi-filters';
 import { H, SIM_DT, type TerrainKey, W, type WeatherKey, lerp, pick, rand } from './core/config';
@@ -56,6 +60,16 @@ async function main() {
   document.getElementById('stage')!.appendChild(app.canvas);
   const clean = params.has('clean');
   if (clean) document.body.classList.add('clean');
+
+  // bundled sci-fi fonts must be ready before any Pixi text is rasterised
+  try {
+    await Promise.race([
+      Promise.all(['900 40px Orbitron', '700 40px Orbitron', '700 40px Rajdhani', '600 40px Rajdhani'].map((f) => document.fonts.load(f))),
+      new Promise((r) => setTimeout(r, 3000)),
+    ]);
+  } catch {
+    /* fall back to system fonts */
+  }
 
   // ------------------------------------------------------------ assets (all code-drawn, baked once)
   const fx = makeFxTextures();

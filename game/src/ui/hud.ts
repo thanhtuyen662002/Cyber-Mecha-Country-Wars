@@ -12,13 +12,41 @@ import type { LiveStatus } from '../net/live';
 import type { Game, RoundSummary } from '../sim/game';
 import { RANKS, rankOf } from '../sim/players';
 
-const FONT = 'Arial Black, Arial, sans-serif';
+// Sci-fi type: Orbitron for headings, Rajdhani for everything you read quickly (bundled, see main.ts).
+export const TITLE_FONT = 'Orbitron, Arial Black, sans-serif';
+export const BODY_FONT = 'Rajdhani, Arial, sans-serif';
+const NEON = 0x38e1ff;
+const GOLD = 0xffd34d;
 const st = (size: number, fill: number | string = 0xffffff, extra: Partial<TextStyleOptions> = {}): TextStyleOptions => ({
-  fontFamily: FONT, fontWeight: '900', fontSize: size, fill, stroke: { color: 0x000000, width: Math.max(3, size / 7) }, ...extra,
+  fontFamily: BODY_FONT, fontWeight: '700', fontSize: size, fill,
+  stroke: { color: 0x02060c, width: Math.max(3, size / 8) },
+  dropShadow: { color: 0x000000, alpha: 0.55, blur: 4, distance: 2, angle: Math.PI / 2 },
+  ...extra,
 });
+const tt = (size: number, fill: number | string = 0xffffff, extra: Partial<TextStyleOptions> = {}): TextStyleOptions =>
+  st(size, fill, { fontFamily: TITLE_FONT, fontWeight: '900', letterSpacing: Math.round(size * 0.06), ...extra });
+
+/** Chamfered rectangle (top-left and bottom-right corners cut): the HUD's basic shape. */
+const cutRect = (x: number, y: number, w: number, h: number, c: number) => [x + c, y, x + w, y, x + w, y + h - c, x + w - c, y + h, x, y + h, x, y + c];
+
+/** Holographic panel: dark glass, neon edge, bright corner brackets and faint scanlines. */
+function panel(g: Graphics, x: number, y: number, w: number, h: number, o: { color?: number; alpha?: number; cut?: number; edge?: number; scan?: boolean } = {}) {
+  const color = o.color ?? NEON, c = o.cut ?? Math.min(18, h * 0.3);
+  const pts = cutRect(x, y, w, h, c);
+  g.poly(pts).fill({ color: 0x050b16, alpha: o.alpha ?? 0.72 });
+  g.poly(cutRect(x + 3, y + 3, w - 6, h * 0.45, c * 0.8)).fill({ color: 0x9fdcff, alpha: 0.05 }); // glass sheen
+  if (o.scan !== false) for (let yy = y + 4; yy < y + h - 2; yy += 4) g.rect(x + 2, yy, w - 4, 1).fill({ color: 0x000000, alpha: 0.12 });
+  g.poly(pts).stroke({ width: o.edge ?? 2, color, alpha: 0.75 });
+  // corner brackets
+  const b = Math.min(26, w * 0.2, h * 0.5);
+  g.moveTo(x + w - b, y).lineTo(x + w, y).lineTo(x + w, y + b).stroke({ width: 4, color, alpha: 1 });
+  g.moveTo(x + b, y + h).lineTo(x, y + h).lineTo(x, y + h - b).stroke({ width: 4, color, alpha: 1 });
+  // tick marks along the bottom edge
+  for (let k = 0; k < 4; k++) g.rect(x + w - c - 14 - k * 9, y + h - 6, 5, 2).fill({ color, alpha: 0.8 });
+}
 const ease = (x: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 
-interface FeedLine { root: Container; flag: Sprite; text: Text; life: number }
+interface FeedLine { root: Container; bg: Graphics; flag: Sprite; text: Text; life: number }
 
 /** Approximate on-screen footprint (px) of each unit rig, used to frame portraits. */
 const FOOT: Record<UnitKey, number> = { infantry: 34, sniper: 44, at: 36, drone: 34, flamer: 34, tank: 62, aa: 62, spider: 104, heli: 120, robot: 92, bomber: 100, titan: 180, strike: 100, jeep: 52, repair: 48, mbt: 90, mlrs: 70, emp: 62, hover: 110, mobile: 150, carrier: 220, stormfort: 150, orbital: 110, dragon: 200 };
@@ -73,6 +101,7 @@ export class Hud {
   private strip = new Container();
   private stripItems: { flag: Sprite; text: Text }[] = [];
   private dot: Graphics;
+  private scan: Sprite;
   // middle banners
   private tip: Text;
   private tipBg: Graphics;
@@ -90,6 +119,7 @@ export class Hud {
   private cutTitle: Text;
   private cutName: Text;
   private cutFlag: Sprite;
+  private cutTag: Text;
   private cutT = 0;
   private cutDur = 0;
   private cutPortrait: Portrait | null = null;
@@ -104,43 +134,60 @@ export class Hud {
   private finalFlash = 0;
 
   constructor(private flags: FlagAtlas, private art: UnitArt, private fx: FxTextures) {
+    // ---- top HUD: three rows of holo panels
     const top = new Graphics();
-    top.rect(0, 0, W, 236).fill({ color: 0x04060b, alpha: 0.62 });
-    top.rect(0, 234, W, 3).fill({ color: 0x38c8ff, alpha: 0.35 });
+    top.rect(0, 0, W, 236).fill({ color: 0x02050a, alpha: 0.35 });
+    panel(top, 12, 10, 690, 86, { color: GOLD });
+    panel(top, 714, 10, 354, 86);
+    panel(top, 12, 104, 380, 64);
+    const hex = [W / 2 - 128, 136, W / 2 - 104, 102, W / 2 + 104, 102, W / 2 + 128, 136, W / 2 + 104, 170, W / 2 - 104, 170];
+    top.poly(hex).fill({ color: 0x050b16, alpha: 0.85 }).stroke({ width: 3, color: NEON, alpha: 0.95 });
+    top.poly(hex.map((v, i) => (i % 2 ? 136 + (v - 136) * 0.82 : W / 2 + (v - W / 2) * 0.9))).stroke({ width: 1, color: NEON, alpha: 0.4 });
+    panel(top, 688, 104, 380, 64);
+    panel(top, 12, 178, W - 24, 50, { cut: 12 });
     const bottom = new Graphics();
-    bottom.rect(0, H - 96, W, 96).fill({ color: 0x04060b, alpha: 0.7 });
-    bottom.rect(0, H - 98, W, 3).fill({ color: 0xffd34d, alpha: 0.4 });
+    panel(bottom, 10, H - 92, W - 20, 80, { color: GOLD, cut: 20 });
     this.layer.addChild(top, bottom);
+    this.scan = new Sprite(fx.beam);
+    this.scan.anchor.set(0.5);
+    this.scan.height = 60;
+    this.scan.width = 160;
+    this.scan.tint = GOLD;
+    this.scan.alpha = 0.18;
+    this.scan.blendMode = 'add';
+    this.scan.y = H - 52;
+    this.layer.addChild(this.scan);
 
-    const crown = new Text({ text: '👑 WORLD EMPEROR', style: st(24, 0xffd34d) });
-    crown.position.set(24, 14);
+    const crown = new Text({ text: '♛ WORLD EMPEROR', style: tt(17, GOLD) });
+    crown.position.set(30, 18);
     this.throneName = new Text({ text: 'Send a gift to claim the throne', style: st(44, 0xffe9a0) });
-    this.throneName.position.set(24, 44);
-    this.throneCoins = new Text({ text: '', style: st(26, 0xffd34d) });
+    this.throneName.position.set(30, 38);
+    this.throneCoins = new Text({ text: '', style: st(26, GOLD) });
     this.throneCoins.anchor.set(1, 0);
-    this.throneCoins.position.set(W - 24, 16);
+    this.throneCoins.position.set(W - 30, 18);
     this.throneCall = new Text({ text: '', style: st(22, 0xffffff) });
     this.throneCall.anchor.set(1, 0);
-    this.throneCall.position.set(W - 24, 60);
-    this.roundText = new Text({ text: '', style: st(26, 0x9fc4ff) });
-    this.roundText.position.set(24, 112);
-    this.timerText = new Text({ text: '', style: st(46) });
-    this.timerText.anchor.set(0.5, 0);
-    this.timerText.position.set(W / 2, 100);
+    this.throneCall.position.set(W - 30, 56);
+    this.roundText = new Text({ text: '', style: tt(19, 0x9fe4ff) });
+    this.roundText.anchor.set(0, 0.5);
+    this.roundText.position.set(30, 136);
+    this.timerText = new Text({ text: '', style: tt(38) });
+    this.timerText.anchor.set(0.5);
+    this.timerText.position.set(W / 2, 137);
     this.weatherText = new Text({ text: '', style: st(26) });
     this.weatherText.anchor.set(1, 0);
-    this.weatherText.position.set(W - 24, 104);
-    this.forecastText = new Text({ text: '', style: st(20, 0xffd34d) });
+    this.weatherText.position.set(W - 30, 106);
+    this.forecastText = new Text({ text: '', style: st(19, GOLD) });
     this.forecastText.anchor.set(1, 0);
-    this.forecastText.position.set(W - 24, 138);
-    this.strip.position.set(24, 172);
+    this.forecastText.position.set(W - 30, 138);
+    this.strip.position.set(32, 185);
     this.dot = new Graphics();
-    this.dot.position.set(W - 14, 228);
+    this.dot.position.set(W - 34, 203);
     this.layer.addChild(crown, this.throneName, this.throneCoins, this.throneCall, this.roundText, this.timerText, this.weatherText, this.forecastText, this.strip, this.dot);
 
     // tip / SOS banner
     this.tipBg = new Graphics();
-    this.tip = new Text({ text: '', style: st(28, 0xffffff, { align: 'center', wordWrap: true, wordWrapWidth: W - 120 }) });
+    this.tip = new Text({ text: '', style: st(30, 0xffffff, { align: 'center', wordWrap: true, wordWrapWidth: W - 140 }) });
     this.tip.anchor.set(0.5);
     this.tip.position.set(W / 2, 300);
     this.layer.addChild(this.tipBg, this.tip);
@@ -151,26 +198,29 @@ export class Hud {
     for (const s of [this.vsA, this.vsB]) (s.anchor.set(0.5), s.scale.set(0.75));
     this.vsA.position.set(-110, 0);
     this.vsB.position.set(110, 0);
-    this.vsText = new Text({ text: 'VS', style: st(44, 0xff4f4f) });
+    this.vsText = new Text({ text: 'VS', style: tt(40, 0xff4f4f) });
     this.vsText.anchor.set(0.5);
-    const vsBg = new Graphics().roundRect(-180, -42, 360, 84, 18).fill({ color: 0x000000, alpha: 0.55 });
+    const vsBg = new Graphics();
+    panel(vsBg, -180, -42, 360, 84, { color: 0xff4f4f });
     this.vsBox.addChild(vsBg, this.vsA, this.vsB, this.vsText);
     this.vsBox.position.set(W / 2, 372);
     this.vsBox.visible = false;
     this.layer.addChild(this.vsBox);
 
     // ticker (how to play)
-    this.ticker = new Text({ text: '', style: st(30, 0xffffff, { align: 'center' }) });
+    this.ticker = new Text({ text: '', style: st(32, 0xffffff, { align: 'center' }) });
     this.ticker.anchor.set(0.5);
     this.ticker.position.set(W / 2, H - 48);
     this.layer.addChild(this.ticker);
 
     // cut-in
-    this.cutTitle = new Text({ text: '', style: st(92, 0xffffff, { letterSpacing: 4 }) });
-    this.cutName = new Text({ text: '', style: st(46, 0xffe27a) });
+    this.cutTitle = new Text({ text: '', style: tt(84, 0xffffff) });
+    this.cutName = new Text({ text: '', style: st(48, 0xffe27a) });
+    this.cutTag = new Text({ text: '', style: tt(20, 0xffffff) });
+    this.cutTag.anchor.set(0.5);
     this.cutFlag = new Sprite(flags.get('XX'));
     for (const t of [this.cutTitle, this.cutName, this.cutFlag]) t.anchor.set(0.5);
-    this.cine.addChild(this.cutBand, this.cutTitle, this.cutName, this.cutFlag);
+    this.cine.addChild(this.cutBand, this.cutTitle, this.cutName, this.cutFlag, this.cutTag);
     this.cine.visible = false;
     this.guide.visible = false;
 
@@ -185,23 +235,28 @@ export class Hud {
     let line = this.feed.length >= 5 ? this.feed.shift()! : null;
     if (!line) {
       const root = new Container();
+      const bg = new Graphics();
       const flag = new Sprite(this.flags.get(code));
       flag.anchor.set(0, 0.5);
       flag.scale.set(0.42);
-      const t = new Text({ text: '', style: st(25, 0xffffff) });
+      flag.x = 10;
+      const t = new Text({ text: '', style: st(27, 0xffffff) });
       t.anchor.set(0, 0.5);
-      t.position.set(48, 0);
-      root.addChild(flag, t);
+      t.position.set(58, 0);
+      root.addChild(bg, flag, t);
       this.layer.addChild(root);
-      line = { root, flag, text: t, life: 0 };
+      line = { root, bg, flag, text: t, life: 0 };
     }
     line.flag.texture = this.flags.get(code);
-    line.text.text = text.length > 58 ? text.slice(0, 57) + '…' : text;
+    line.text.text = text.length > 62 ? text.slice(0, 61) + '…' : text;
     line.text.style.fill = color;
+    const w = Math.min(W - 40, line.text.width + 76);
+    line.bg.clear().poly(cutRect(0, -18, w, 36, 10)).fill({ color: 0x050b16, alpha: 0.62 });
+    line.bg.rect(0, -18, 4, 36).fill({ color, alpha: 0.95 });
     line.life = 9;
     line.root.alpha = 1;
     this.feed.push(line);
-    this.feed.forEach((l, i) => l.root.position.set(22, H - 130 - (this.feed.length - 1 - i) * 40));
+    this.feed.forEach((l, i) => l.root.position.set(16, H - 124 - (this.feed.length - 1 - i) * 42));
   }
 
   // ------------------------------------------------------------ cinematic banner
@@ -210,17 +265,32 @@ export class Hud {
     this.cutDur = dur;
     const y0 = tier >= 5 ? 740 : 800;
     const h = tier >= 5 ? 380 : 280;
-    this.cutBand.clear();
-    this.cutBand.poly([0, y0 + 60, W, y0, W, y0 + h, 0, y0 + h + 60]).fill({ color: 0x000000, alpha: 0.75 });
-    this.cutBand.poly([0, y0 + 52, W, y0 - 8, W, y0 + 4, 0, y0 + 64]).fill(color);
-    this.cutBand.poly([0, y0 + h + 52, W, y0 + h - 8, W, y0 + h + 4, 0, y0 + h + 64]).fill(color);
+    const b = this.cutBand.clear();
+    b.poly([0, y0 + 60, W, y0, W, y0 + h, 0, y0 + h + 60]).fill({ color: 0x03070f, alpha: 0.82 });
+    // hex grid + scanlines inside the band
+    for (let gy = y0 + 20; gy < y0 + h + 40; gy += 34)
+      for (let gx = (Math.floor((gy - y0) / 34) % 2) * 20; gx < W; gx += 40) {
+        const yy = gy - (gx / W) * 60 + 30;
+        if (yy < y0 + 70 - (gx / W) * 60 || yy > y0 + h + 50 - (gx / W) * 60) continue;
+        const r = 12, pts: number[] = [];
+        for (let k = 0; k < 6; k++) pts.push(gx + Math.cos((k / 6) * Math.PI * 2) * r, yy + Math.sin((k / 6) * Math.PI * 2) * r);
+        b.poly(pts).stroke({ width: 1, color, alpha: 0.12 });
+      }
+    for (let yy = y0; yy < y0 + h + 60; yy += 5) b.rect(0, yy, W, 1).fill({ color: 0x000000, alpha: 0.18 });
+    b.poly([0, y0 + 52, W, y0 - 8, W, y0 + 4, 0, y0 + 64]).fill(color);
+    b.poly([0, y0 + h + 52, W, y0 + h - 8, W, y0 + h + 4, 0, y0 + h + 64]).fill(color);
+    // chevrons
+    for (let k = 0; k < 6; k++) b.poly([W - 60 - k * 26, y0 + 30, W - 46 - k * 26, y0 + 30, W - 34 - k * 26, y0 + 44, W - 46 - k * 26, y0 + 58, W - 60 - k * 26, y0 + 58, W - 48 - k * 26, y0 + 44]).fill({ color, alpha: 0.25 + k * 0.12 });
+    this.cutTag.text = `▶ INCOMING  ·  TIER ${tier}  ${'★'.repeat(Math.max(1, tier - 2))}`;
+    this.cutTag.style.fill = tier >= 6 ? GOLD : color;
+    this.cutTag.y = y0 + h * 0.18 + 30;
     // the unit itself, big, on the left of the banner
     this.cutPortrait?.destroy();
-    this.cutPortrait = new Portrait(key === 'strike' ? 'bomber' : key, color, tier >= 5 ? 330 : 250, this.art, this.fx);
+    this.cutPortrait = new Portrait(key === 'strike' ? 'bomber' : key, color, tier >= 5 ? 320 : 240, this.art, this.fx);
     this.cutPortrait.root.y = y0 + h / 2 + 30;
     this.cine.addChildAt(this.cutPortrait.root, 1);
     this.cutTitle.text = unitName.toUpperCase();
-    this.cutTitle.style.fontSize = tier >= 5 ? 86 : 66;
+    this.cutTitle.style.fontSize = tier >= 5 ? 78 : 60;
     this.cutTitle.style.fill = tier >= 6 ? 0xffd34d : color;
     this.cutTitle.scale.set(Math.min(1, 600 / this.cutTitle.width));
     this.cutName.text = `@${who} called it in!`;
@@ -241,22 +311,24 @@ export class Hud {
     const slot = [0, 1, 2].find((i) => !used.has(i)) ?? 0;
     const root = new Container();
     const bg = new Graphics();
-    bg.roundRect(0, 0, 440, 132, 18).fill({ color: 0x05070c, alpha: 0.82 }).stroke({ width: 3, color, alpha: 0.9 });
-    bg.roundRect(10, 10, 112, 112, 12).fill({ color: 0x111827, alpha: 0.9 });
+    panel(bg, 0, 0, 440, 132, { color, alpha: 0.85, cut: 22 });
+    bg.poly(cutRect(10, 10, 112, 112, 14)).fill({ color: 0x0b1626, alpha: 0.95 }).stroke({ width: 1.5, color, alpha: 0.5 });
+    for (let k = 0; k < UNITS[key].tier; k++) bg.poly([392 - k * 16, 18, 404 - k * 16, 18, 398 - k * 16, 30]).fill({ color: GOLD });
     root.addChild(bg);
     const portrait = new Portrait(key, color, 112, this.art, this.fx);
     portrait.root.position.set(66, 66);
     root.addChild(portrait.root);
-    const name = new Text({ text: UNITS[key].name.toUpperCase(), style: st(30, color) });
-    name.position.set(138, 16);
-    name.scale.set(Math.min(1, 290 / name.width));
+    const name = new Text({ text: UNITS[key].name.toUpperCase(), style: tt(24, color) });
+    name.position.set(138, 30);
+    name.anchor.set(0, 0.5);
+    name.scale.set(Math.min(1, 230 / name.width));
     const flag = new Sprite(this.flags.get(code));
     flag.scale.set(0.38);
     flag.position.set(138, 66);
-    const by = new Text({ text: `@${who}`, style: st(24, 0xffffff) });
+    const by = new Text({ text: `@${who}`, style: st(26, 0xffffff) });
     by.position.set(184, 64);
     by.scale.set(Math.min(1, 240 / by.width));
-    const tag = new Text({ text: `TIER ${UNITS[key].tier} · deployed`, style: st(18, 0x9fb4d8) });
+    const tag = new Text({ text: `TIER ${UNITS[key].tier} · DEPLOYED`, style: tt(13, 0x9fdcff) });
     tag.position.set(138, 100);
     root.addChild(name, flag, by, tag);
     root.position.set(W + 20, 520 + slot * 148);
@@ -270,7 +342,7 @@ export class Hud {
     this.cards.splice(this.cards.indexOf(c), 1);
   }
 
-  /** Full-screen guide of all 13 units with their gift tier and what they counter. */
+  /** Full-screen guide of all 24 units with their gift tier and what they counter. */
   toggleGuide(show = !this.guide.visible) {
     this.guide.visible = show;
     for (const p of this.guidePortraits) p.destroy();
@@ -279,34 +351,44 @@ export class Hud {
     if (!show) return;
     const bg = new Graphics().rect(0, 0, W, H).fill({ color: 0x03050a, alpha: 0.94 });
     this.guide.addChild(bg);
-    const title = new Text({ text: 'UNIT GUIDE', style: st(60, 0xffd34d, { letterSpacing: 4 }) });
+    const title = new Text({ text: 'UNIT DATABASE', style: tt(52, GOLD) });
     title.anchor.set(0.5, 0);
-    title.position.set(W / 2, 40);
-    this.guide.addChild(title);
-    const cols = 3, cw = W / cols, ch = 350, top = 140;
+    title.position.set(W / 2, 28);
+    const sub = new Text({ text: '24 units · 7 gift tiers · pick yours with a !command', style: st(24, 0x9fdcff) });
+    sub.anchor.set(0.5, 0);
+    sub.position.set(W / 2, 92);
+    this.guide.addChild(title, sub);
+    const cols = 4, cw = W / cols, ch = 292, top = 136;
     const keys = UNIT_KEYS;
     keys.forEach((k, i) => {
       const d = UNITS[k];
       const cx = (i % cols) * cw + cw / 2, cy = top + Math.floor(i / cols) * ch;
-      const box = new Graphics().roundRect(cx - cw / 2 + 10, cy, cw - 20, ch - 16, 16).fill({ color: 0x0c1220, alpha: 1 }).stroke({ width: 2, color: 0x23324d });
+      const tierCol = [0x9fb4d8, 0x6dff9a, 0x38e1ff, 0x5a8cff, 0xc86dff, 0xff9a3d, GOLD][d.tier];
+      const box = new Graphics();
+      panel(box, cx - cw / 2 + 8, cy, cw - 16, ch - 12, { color: tierCol, alpha: 0.9, cut: 16 });
       this.guide.addChild(box);
-      const p = new Portrait(k === 'strike' ? 'bomber' : k, 0x38c8ff, k === 'titan' ? 165 : 150, this.art, this.fx);
-      if (k === 'strike') p.root.children[1].tint = 0xffd34d;
-      p.root.position.set(cx, cy + 105);
+      const tierTag = new Text({ text: `T${d.tier}`, style: tt(16, tierCol) });
+      tierTag.position.set(cx - cw / 2 + 20, cy + 10);
+      this.guide.addChild(tierTag);
+      const p = new Portrait(k === 'strike' ? 'bomber' : k, tierCol, k === 'titan' || k === 'carrier' || k === 'dragon' ? 135 : 118, this.art, this.fx);
+      if (k === 'strike') p.root.children[1].tint = GOLD;
+      p.root.position.set(cx, cy + 92);
       this.guide.addChild(p.root);
       this.guidePortraits.push(p);
-      const name = new Text({ text: d.name.toUpperCase(), style: st(26, 0xffffff) });
+      const name = new Text({ text: d.name.toUpperCase(), style: tt(17, 0xffffff) });
       name.anchor.set(0.5, 0);
-      name.position.set(cx, cy + 205);
+      name.position.set(cx, cy + 172);
       name.scale.set(Math.min(1, (cw - 40) / name.width));
       const how = d.tier === 0 ? { infantry: 'CHAT', sniper: 'FOLLOW', at: 'SHARE' }[k as 'infantry'] : `${TIER_MIN[d.tier].toLocaleString('en-US')}+ COINS`;
-      const tier = new Text({ text: `${how}${d.cmds[0] && d.tier > 0 && d.tier !== 3 && d.tier !== 5 && d.tier !== 6 ? ' · ' + d.cmds[0] : ''}`, style: st(20, 0xffd34d) });
+      const tier = new Text({ text: `${how}${d.tier > 0 ? ' · ' + d.cmds[0] : ''}`, style: st(21, GOLD) });
       tier.anchor.set(0.5, 0);
-      tier.position.set(cx, cy + 242);
+      tier.position.set(cx, cy + 202);
+      tier.scale.set(Math.min(1, (cw - 30) / tier.width));
       const strong = (Object.entries(COUNTER[d.weapon]) as [keyof typeof CLASS_NAME, number][]).filter(([, v]) => v >= 1.4).map(([c]) => CLASS_NAME[c]);
-      const vs = new Text({ text: strong.length ? `Strong vs ${strong.join(', ')}` : 'All-rounder', style: st(18, 0x9fb4d8, { wordWrap: true, wordWrapWidth: cw - 40, align: 'center' }) });
+      const vsText = d.weapon === 'repair' ? 'Heals friendly units' : strong.length ? `Strong vs ${strong.join(', ')}` : 'All-rounder';
+      const vs = new Text({ text: vsText, style: st(18, 0x9fb4d8, { wordWrap: true, wordWrapWidth: cw - 36, align: 'center' }) });
       vs.anchor.set(0.5, 0);
-      vs.position.set(cx, cy + 276);
+      vs.position.set(cx, cy + 232);
       this.guide.addChild(name, tier, vs);
     });
   }
@@ -317,12 +399,16 @@ export class Hud {
     this.vicBox.removeChildren().forEach((c) => c.destroy());
     const add = <T extends Container>(o: T, x: number, y: number) => (o.position.set(x, y), this.vicBox.addChild(o), o);
     const win = s.ranking[0];
-    add(new Text({ text: `ROUND ${s.n} COMPLETE`, style: st(46, 0x9fc4ff) }), W / 2, 360).anchor.set(0.5);
+    const box = new Graphics();
+    panel(box, 60, 300, W - 120, 1320, { color: win?.color ?? NEON, alpha: 0.6, cut: 40 });
+    this.vicBox.addChild(box);
+    add(new Text({ text: `ROUND ${s.n} COMPLETE`, style: tt(40, 0x9fe4ff) }), W / 2, 380).anchor.set(0.5);
     if (win) {
       const fl = add(new Sprite(this.flags.get(win.code)), W / 2, 580);
       fl.anchor.set(0.5);
       fl.scale.set(2.6);
-      const t = add(new Text({ text: `${win.name.toUpperCase()} WINS!`, style: st(86, win.color) }), W / 2, 790);
+      const t = add(new Text({ text: `${win.name.toUpperCase()} WINS!`, style: tt(68, win.color) }), W / 2, 790);
+      t.scale.set(Math.min(1, (W - 180) / t.width));
       t.anchor.set(0.5);
     }
     s.ranking.slice(0, 5).forEach((r, i) => {
@@ -358,6 +444,8 @@ export class Hud {
       this.cutTitle.x = lerp(-600, W / 2 + 110, slide) + out * (W + 600);
       this.cutName.x = lerp(W + 600, W / 2 + 150, slide) - out * (W + 600);
       this.cutFlag.x = this.cutName.x - this.cutName.width / 2 - 60;
+      this.cutTag.x = this.cutTitle.x;
+      this.cutTag.alpha = slide * (1 - out);
       this.cutBand.alpha = Math.min(1, p * 6) * (1 - out);
       if (this.cutPortrait) {
         this.cutPortrait.root.x = lerp(-300, 200, ease((p - 0.1) * 3.5)) - out * 700;
@@ -379,6 +467,7 @@ export class Hud {
       l.root.alpha = Math.max(0, Math.min(1, l.life));
     }
     if (this.overlay.visible) this.overlay.alpha = Math.min(1, this.overlay.alpha + dt * 2);
+    this.scan.x = ((this.finalFlash * 260) % (W + 400)) - 200;
     // final assault flashing timer
     this.finalFlash += dt;
     this.textTick -= dt;
@@ -394,36 +483,41 @@ export class Hud {
     if (emp) {
       const rank = RANKS[rankOf(emp.coins)];
       this.throneName.text = `@${emp.name}`;
+      this.throneName.scale.set(Math.min(1, 650 / Math.max(1, this.throneName.width / this.throneName.scale.x)));
       this.throneName.style.fill = 0xffe9a0;
       this.throneCoins.text = `${fmt(emp.today)} coins today · ${rank.name}`;
       this.throneCall.text = `Send ${fmt(emp.today + 1)}+ to steal the throne!`;
     } else {
       this.throneName.text = 'The throne is empty!';
+      this.throneName.scale.set(1);
       this.throneCoins.text = '';
       this.throneCall.text = 'First gift today takes the crown';
     }
     // round, timer
     const r = game.round;
     const ter = TERRAINS.find((t) => t.key === game.terrain)!;
-    this.roundText.text = `ROUND ${r.n} · ${ter.name.toUpperCase()}`;
+    this.roundText.text = `R${r.n} · ${ter.name.toUpperCase()}`;
+    this.roundText.scale.set(Math.min(1, 350 / Math.max(1, this.roundText.width / this.roundText.scale.x)));
     const tl = Math.max(0, Math.ceil(r.timeLeft));
     const final = r.state === 'battle' && tl <= 60;
-    this.timerText.text = r.state === 'victory' ? 'VICTORY' : final ? `⚡ ${tl}s  FINAL ASSAULT x2` : `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
+    this.timerText.text = r.state === 'victory' ? 'VICTORY' : final ? `${tl}s · FINAL x2` : `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
     this.timerText.style.fill = final ? (Math.sin(this.finalFlash * 8) > 0 ? 0xff3b3b : 0xffd34d) : 0xffffff;
-    this.timerText.style.fontSize = final ? 40 : 46;
+    this.timerText.style.fontSize = final ? 24 : 38;
+    this.timerText.scale.set(Math.min(1, 240 / Math.max(1, this.timerText.width / this.timerText.scale.x)));
     const wd = WEATHERS.find((x) => x.key === game.weather)!;
     this.weatherText.text = `${wd.icon} ${wd.name.toUpperCase()}`;
     if (game.nextWeather) {
       const nd = WEATHERS.find((x) => x.key === game.nextWeather)!;
       this.forecastText.text = `NEXT: ${nd.icon} ${nd.name} in ${Math.max(0, Math.ceil(game.weatherIn))}s`;
-    } else this.forecastText.text = wd.key === 'clear' ? '' : wd.hint;
+    } else this.forecastText.text = wd.key === 'clear' ? ter.hint : wd.hint;
+    for (const t of [this.throneCoins, this.throneCall, this.weatherText, this.forecastText]) t.scale.set(Math.min(1, 330 / Math.max(1, t.width / t.scale.x)));
     // country strip: top 6 by score
     const ranked = w.factions.filter((f) => f.id !== 0 && f.slot >= 0).sort((a, b) => b.score - a.score).slice(0, 6);
     while (this.stripItems.length < ranked.length) {
       const flag = new Sprite(this.flags.get('XX'));
       flag.anchor.set(0, 0.5);
       flag.scale.set(0.45);
-      const text = new Text({ text: '', style: st(24) });
+      const text = new Text({ text: '', style: tt(20) });
       text.anchor.set(0, 0.5);
       this.strip.addChild(flag, text);
       this.stripItems.push({ flag, text });
@@ -464,7 +558,11 @@ export class Hud {
     this.tip.text = tip;
     this.tip.style.fill = tipCol;
     this.tipBg.clear();
-    if (tip) this.tipBg.roundRect(40, 300 - this.tip.height / 2 - 12, W - 80, this.tip.height + 24, 14).fill({ color: 0x000000, alpha: 0.6 });
+    if (tip) {
+      const th = this.tip.height + 28, ty = 300 - th / 2;
+      panel(this.tipBg, 40, ty, W - 80, th, { color: sos ? 0xff4f4f : GOLD, alpha: 0.75 });
+      if (sos) for (let k = 0; k < 6; k++) this.tipBg.poly([52 + k * 16, ty + 6, 60 + k * 16, ty + 6, 52 + k * 16, ty + th - 6, 44 + k * 16, ty + th - 6]).fill({ color: 0xff4f4f, alpha: 0.6 });
+    }
     this.tip.visible = !!tip;
     if (tip) this.vsBox.y = 300 + this.tip.height / 2 + 70;
     else this.vsBox.y = 330;
@@ -476,14 +574,17 @@ export class Hud {
       const lines = [
         `TYPE YOUR COUNTRY TO JOIN: ${codes.join(' · ')} …`,
         `CHAT = rifleman · FOLLOW = sniper · SHARE = anti-tank`,
-        `ROSE → ${UNITS.drone.name} · ${TIER_LABEL(2)} coins → TANK / AA / SPIDER`,
-        `${TIER_LABEL(3)} → HELI · ${TIER_LABEL(4)} → ROBOT / BOMBER · ${TIER_LABEL(5)} → MECHA TITAN`,
-        `${TIER_LABEL(6)} coins → ☢ STRATEGIC BOMBING`,
-        `Pick your unit: !tank !aa !spider !drone !flame !robot !bomber`,
+        `ROSE → DRONE / FLAMER / JEEP · ${TIER_LABEL(2)} coins → TANK / AA / SPIDER / REPAIR`,
+        `${TIER_LABEL(3)} → HELI / BATTLE TANK / ARTILLERY / EMP`,
+        `${TIER_LABEL(4)} → ROBOT / BOMBER / HOVERCRAFT / MOBILE FORTRESS`,
+        `${TIER_LABEL(5)} → TITAN / DRONE CARRIER / STORM FORTRESS`,
+        `${TIER_LABEL(6)} coins → STRATEGIC BOMBING / ORBITAL CANNON / MECHA DRAGON`,
+        `Pick your unit: !tank !aa !emp !mlrs !hover !robot !carrier !dragon …`,
         `${game.cfg.likesPerCrate.toLocaleString('en-US')} LIKES = SUPPLY CRATE (${fmt(game.likesRoom)}/${fmt(game.cfg.likesPerCrate)})`,
         `Hold the ENERGY CORE · REPAIR DEPOT · FACTORY for bonuses`,
       ];
       this.ticker.text = lines[this.tickerIdx++ % lines.length];
+      this.ticker.scale.set(Math.min(1, (W - 80) / Math.max(1, this.ticker.width / this.ticker.scale.x)));
     }
   }
 
