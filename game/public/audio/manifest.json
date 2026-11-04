@@ -1,0 +1,138 @@
+{
+  "sfx": {
+    "gun": {
+      "files": [
+        "sfx/gun1.ogg",
+        "sfx/gun2.ogg",
+        "sfx/gun3.ogg",
+        "sfx/gun4.ogg"
+      ],
+      "gain": 0.7
+    },
+    "sniper": {
+      "files": [
+        "sfx/sniper1.ogg",
+        "sfx/sniper2.ogg",
+        "sfx/sniper3.ogg"
+      ],
+      "gain": 0.8
+    },
+    "flak": {
+      "files": [
+        "sfx/flak1.ogg",
+        "sfx/flak2.ogg",
+        "sfx/flak3.ogg",
+        "sfx/flak4.ogg"
+      ],
+      "gain": 0.7
+    },
+    "cannon": {
+      "files": [
+        "sfx/cannon1.ogg",
+        "sfx/cannon2.ogg",
+        "sfx/cannon3.ogg",
+        "sfx/cannon4.ogg"
+      ],
+      "gain": 0.9
+    },
+    "boom": {
+      "files": [
+        "sfx/boom1.ogg",
+        "sfx/boom2.ogg",
+        "sfx/boom3.ogg",
+        "sfx/boom4.ogg"
+      ],
+      "gain": 0.9
+    },
+    "bigboom": {
+      "files": [
+        "sfx/bigboom1.ogg",
+        "sfx/bigboom2.ogg",
+        "sfx/bigboom3.ogg",
+        "sfx/bigboom4.ogg"
+      ],
+      "gain": 1
+    },
+    "rocket": {
+      "files": [
+        "sfx/rocket1.ogg",
+        "sfx/rocket2.ogg",
+        "sfx/rocket3.ogg"
+      ],
+      "gain": 0.7
+    },
+    "laser": {
+      "files": [
+        "sfx/laser1.ogg",
+        "sfx/laser2.ogg",
+        "sfx/laser3.ogg",
+        "sfx/laser4.ogg"
+      ],
+      "gain": 0.6
+    },
+    "flame": {
+      "files": [
+        "sfx/flame1.ogg",
+        "sfx/flame2.ogg",
+        "sfx/flame3.ogg"
+      ],
+      "gain": 0.6
+    },
+    "thunder": {
+      "files": [
+        "sfx/thunder1.ogg",
+        "sfx/thunder2.ogg"
+      ],
+      "gain": 0.9
+    },
+    "alarm": {
+      "files": [
+        "sfx/alarm1.ogg",
+        "sfx/alarm2.ogg",
+        "sfx/alarm3.ogg"
+      ],
+      "gain": 0.5
+    },
+    "drop": {
+      "files": [
+        "sfx/drop1.ogg",
+        "sfx/drop2.ogg"
+      ],
+      "gain": 0.8
+    },
+    "clang": {
+      "files": [
+        "sfx/clang1.ogg",
+        "sfx/clang2.ogg",
+        "sfx/clang3.ogg"
+      ],
+      "gain": 0.6
+    },
+    "splash": {
+      "files": [
+        "sfx/splash1.ogg",
+        "sfx/splash2.ogg",
+        "sfx/splash3.ogg"
+      ],
+      "gain": 0.7
+    },
+    "steam": {
+      "files": [
+        "sfx/steam1.ogg",
+        "sfx/steam2.ogg"
+      ],
+      "gain": 0.5
+    }
+  },
+  "music": {
+    "calm": [
+      "music/calm1.ogg",
+      "music/calm2.ogg"
+    ],
+    "battle": [
+      "music/battle1.ogg",
+      "music/battle2.ogg",
+      "music/battle3.ogg"
+    ]
+  }
+}
