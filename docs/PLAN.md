@@ -262,6 +262,8 @@ Nguyên tắc số 1: người xem lướt qua trong 1 giây phải nhận ra ph
 
 Bước đầu tiên của phần đồ họa là 1 trang moodboard + concept cho 7 bậc đơn vị và 4 địa hình đầu tiên để Oscar duyệt trước khi làm asset thật.
 
+**Demo so sánh (03/11/2026):** thư mục `art-lab/` chứa cảnh thử 6 đơn vị, pháo đài, 4 địa hình, 5 thời tiết và hiệu ứng nổ, chạy được ở 2 chế độ: A vẽ bằng code, B dùng ảnh AI (prompt trong `docs/ART_PROMPTS.md`). Oscar đã chọn phương án A (toàn bộ vẽ bằng code) ngày 03/11/2026.
+
 ## Hiệu năng và ổn định 24/7: mọi thứ có trần, mọi lỗi tự hồi phục
 
 Mục tiêu đo được: giữ 60 FPS với 250 quân, 3.000 hạt, thời tiết và địa hình động trên máy stream của Oscar (i5 đời 12, RTX 3060), bộ nhớ không tăng quá 10% sau 72 giờ. Bản đồ lớn hơn màn hình nên thứ gì ngoài camera vẫn được tính toán nhưng không vẽ, hiệu ứng ngoài camera thì bỏ qua.
@@ -306,6 +308,10 @@ Thời gian là ước lượng, tính từ ngày Oscar nói bắt đầu. Phạ
 
 Từ cuối M2 (khoảng tuần 5) đã có bản chơi được với hình tạm, nên Oscar có thể live thử sớm để xem người xem phản ứng. Qua Cổng 2 mới nên treo live qua đêm.
 
+**Tiến độ (03/11/2026):** bản chơi được v1 (2D, PixiJS) nằm trong thư mục `game/` + `bridge/` trên nhánh `track/2d`. Đã có M1–M2 (chọn nước qua chat, đủ 24 đơn vị và khắc chế, cứ điểm, thời tiết, vòng 15 phút), phần lớn M5 (camera đạo diễn, cut-in theo bậc, tên trên đơn vị) và M6 (vòng lặp 30 Hz, trần/pool, lưu IndexedDB, watchdog, chất lượng tự động). Khác kế hoạch: bản đồ tạm là 1 màn hình với 12 vị trí pháo đài (chưa có bản đồ lục giác nở ra, chưa có tiền đồn). Còn thiếu: lưới phản ứng nguyên tố, bình chọn thời tiết, Boss Raid, bảng mùa giải, skin theo cấp bậc; âm thanh vẫn là âm tổng hợp. M0 còn chờ kiểm tra trên máy Oscar: WebSocket TikFinity bản miễn phí và giá xu quà thật.
+
+**Phát triển song song 2D và 3D (04/11/2026):** từ nay có 2 nhánh làm song song, 2D (Oscar, PixiJS) và 3D (bạn của Oscar), để cuối cùng chọn bản đẹp nhất. Luật chơi, giao thức sự kiện và tiêu chí chấm chung nằm trong [TRACKS.md](TRACKS.md).
+
 ## Rủi ro và câu hỏi cho Oscar
 
 **Rủi ro:**
@@ -327,7 +333,7 @@ Từ cuối M2 (khoảng tuần 5) đã có bản chơi được với hình t�
 | Nội dung bản ra mắt | 13 đơn vị (đủ 7 bậc quà và đủ vòng khắc chế): Bộ binh, Bắn tỉa, Chống tăng, Drone tự sát, Phun lửa, Xe tăng nhẹ, Phòng không, Nhện máy, Trực thăng tấn công, Robot cỡ lớn, Máy bay ném bom, Mecha Titan, Oanh tạc chiến lược |
 | Địa hình ra mắt | Rừng rậm (cháy lan), Băng tuyết (trơn, vỡ băng), Đầm lầy độc (axit, nổ metan), Thành phố đổ nát (phá hủy nhà). Bốn loại này đã bao đủ các phản ứng lửa, nước, băng, axit, nổ |
 | Thời tiết ra mắt | Mưa lớn, Giông sét, Bão tuyết, Sương mù, Gió mạnh |
-| Đồ họa | AI làm toàn bộ: mình vẽ vector bằng code, "nướng" thành texture lúc khởi động. Không tốn tiền asset, chạy nhanh như sprite thường. Chưa chốt giữa toàn bộ bằng code hay kết hợp ảnh AI (Oscar tạo theo prompt của Claude) cho đơn vị bậc cao, pháo đài, nền: tuần đầu làm 1 cảnh demo cả hai kiểu (3 đơn vị, 1 vụ nổ lớn, có âm thanh) để Oscar xem rồi chọn |
+| Đồ họa | Chốt 03/11/2026: **toàn bộ vẽ bằng code** (vector nướng thành texture lúc khởi động, như demo `art-lab/`). Không dùng ảnh AI: Leonardo bản free không tạo được ảnh dùng được. Chế độ ảnh trong demo vẫn giữ để sau này thử nếu cần |
 | Phần mềm live | TikTok LIVE Studio (hỗ trợ sẵn khung dọc, không cần xin stream key), OBS làm dự phòng |
 | Máy stream | i5 đời 12, RTX 3060 12 GB, 64 GB RAM: dư sức chạy 1080×1920 60 FPS kèm bloom; card NVIDIA mã hóa video nên CPU rảnh cho game |
 | TikFinity | Dùng bản miễn phí. Nếu bản miễn phí không mở WebSocket cho app ngoài, dùng TikTok-Live-Connector (thư viện Node mã nguồn mở) thay thế; game chỉ cần thêm 1 bộ chuyển đổi. M0 kiểm tra việc này |

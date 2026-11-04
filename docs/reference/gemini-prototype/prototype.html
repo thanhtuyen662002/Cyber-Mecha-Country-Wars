@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikTok Live: Cyber Mecha Country Wars v3.0</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  body {
+    background: #05070e;
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+    margin: 0;
+    overflow: hidden;
+    user-select: none;
+  }
+  .font-orbitron { font-family: 'Orbitron', sans-serif; }
+  
+  /* 9:16 TikTok Viewport Container */
+  #tiktok-viewport {
+    width: 460px;
+    height: 818px;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #0f172a 0%, #04060c 100%);
+    box-shadow: 0 0 50px rgba(0, 240, 255, 0.18), inset 0 0 30px rgba(0,0,0,0.9);
+    border: 2px solid #1e293b;
+    border-radius: 20px;
+  }
+
+  @keyframes pulse-sos {
+    0%, 100% { box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); border-color: #1e293b; }
+    50% { box-shadow: inset 0 0 85px rgba(239, 68, 68, 0.85); border-color: #ef4444; }
+  }
+  .sos-active {
+    animation: pulse-sos 0.55s infinite !important;
+  }
+
+  @keyframes golden-shine {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .emperor-card {
+    background: linear-gradient(90deg, rgba(24,18,5,0.95) 0%, rgba(120,85,12,0.9) 50%, rgba(24,18,5,0.95) 100%);
+    background-size: 200% auto;
+    animation: golden-shine 4s linear infinite;
+    border: 1.5px solid #fbbf24;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.35);
+  }
+
+  @keyframes whale-entry {
+    0% { transform: scale(0.4) translateY(60px); opacity: 0; }
+    15% { transform: scale(1.06) translateY(0); opacity: 1; }
+    85% { transform: scale(1) translateY(0); opacity: 1; }
+    100% { transform: scale(1.2) translateY(-40px); opacity: 0; }
+  }
+  .whale-cutin {
+    animation: whale-entry 4.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Custom Scrollbar for Logs */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #090d16; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+</style>
+</head>
+<body class="h-screen w-screen flex items-center justify-center gap-6 p-4">
+
+  <!-- LEFT: TIKTOK 9:16 VERTICAL LIVE STREAM CANVAS -->
+  <div id="tiktok-viewport">
+    
+    <!-- TOP HUD: SCOREBOARD & WORLD EMPEROR THRONE -->
+    <div class="absolute top-0 left-0 right-0 z-20 p-2.5 flex flex-col gap-1.5 pointer-events-none">
+      
+      <!-- Live Status & Win Tallies -->
+      <div class="flex items-center justify-between bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-lg border border-slate-800/80 text-xs">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+          <span class="font-orbitron font-bold tracking-wider text-red-400">LIVE</span>
+          <span id="round-timer" class="text-slate-300 font-mono ml-1">04:59</span>
+        </div>
+        <div class="flex items-center gap-2.5 font-bold">
+          <span title="USA Wins">🇺🇸 <b id="win-US" class="text-cyan-400">0</b></span>
+          <span title="UK Wins">🇬🇧 <b id="win-UK" class="text-pink-400">0</b></span>
+          <span title="Brazil Wins">🇧🇷 <b id="win-BR" class="text-emerald-400">0</b></span>
+          <span title="Japan Wins">🇯🇵 <b id="win-JP" class="text-amber-400">0</b></span>
+        </div>
+      </div>
+
+      <!-- WORLD EMPEROR THRONE (#1 TOP DONATOR) -->
+      <div class="emperor-card rounded-xl px-3 py-1.5 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="relative">
+            <img id="emp-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=King" class="w-9 h-9 rounded-full border-2 border-yellow-300 bg-slate-900" alt="Emperor">
+            <span class="absolute -top-2 -left-1 text-base drop-shadow">👑</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-orbitron uppercase tracking-widest text-yellow-300 font-black">WORLD EMPEROR</span>
+              <span id="emp-flag" class="text-xs">🇺🇸</span>
+            </div>
+            <div id="emp-name" class="text-sm font-black text-white leading-tight truncate max-w-[160px]">CryptoWhale_99</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs font-orbitron font-black text-yellow-300"><span id="emp-coins">1,250</span> 🪙</div>
+          <div class="text-[10px] text-yellow-100/90 font-semibold animate-pulse">Send 🍩/🌌 to Steal Throne!</div>
+        </div>
+      </div>
+
+      <!-- SOS EMERGENCY BANNER (Hidden by default) -->
+      <div id="sos-banner" class="hidden bg-red-950/90 border border-red-500 rounded-lg px-3 py-1 text-center animate-bounce">
+        <span id="sos-text" class="text-xs font-orbitron font-black text-red-200 tracking-wide">
+          🚨 🇺🇸 USA CITADEL CRITICAL (15% HP)! SEND 🍩 DOUGHNUT TO HEAL! 🚨
+        </span>
+      </div>
+    </div>
+
+    <!-- MAIN 60FPS PROCEDURAL MECHA CANVAS -->
+    <canvas id="battleCanvas" width="460" height="818" class="absolute inset-0 z-10"></canvas>
+
+    <!-- WHALE GALAXY CUT-IN OVERLAY (Z-30) -->
+    <div id="whale-overlay" class="hidden absolute inset-0 z-30 pointer-events-none flex flex-col items-center justify-center bg-black/55 backdrop-blur-[2px]">
+      <div id="whale-box" class="whale-cutin w-11/12 bg-gradient-to-b from-amber-500/25 via-purple-950/95 to-slate-950 border-2 border-yellow-400 rounded-2xl p-4 text-center shadow-[0_0_60px_rgba(250,204,21,0.75)]">
+        <div class="text-xs font-orbitron tracking-[0.25em] text-yellow-300 font-bold mb-1">⚡ CELESTIAL WHALE SUMMON ⚡</div>
+        <img id="whale-avatar" src="" class="w-16 h-16 rounded-full mx-auto border-4 border-yellow-300 shadow-lg bg-slate-900 mb-2">
+        <div id="whale-user" class="text-xl font-orbitron font-black text-white drop-shadow">User</div>
+        <div id="whale-desc" class="text-sm font-bold text-amber-300 mt-1">SUMMONED MECHA CYBER DRAGON + ORBITAL NUKE!</div>
+        <div class="mt-2 text-[11px] font-mono text-pink-300 bg-pink-950/70 py-1 px-2 rounded border border-pink-500/40">
+          ALL ENEMY CITADELS TOOK -1,400 ORBITAL DAMAGE!
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM HUD: KILL FEED & PAY-TO-WIN PRICING DOCK -->
+    <div class="absolute bottom-0 left-0 right-0 z-20 p-2.5 flex flex-col gap-1.5 pointer-events-none bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pt-6">
+      
+      <!-- Live Action Feed -->
+      <div id="kill-feed" class="flex flex-col gap-1 text-[11px] font-semibold px-1 max-h-[68px] overflow-hidden"></div>
+
+      <!-- 4-Tier Visual Gift Pricing Menu -->
+      <div class="grid grid-cols-5 gap-1.5 bg-slate-900/95 border border-slate-700/80 p-1.5 rounded-xl text-center">
+        <div class="bg-slate-950/90 rounded-lg p-1 border border-slate-800">
+          <div class="text-[10px] text-slate-400 font-bold">COMMENT</div>
+          <div class="text-sm my-0.5">💬 Flag</div>
+          <div class="text-[9px] font-orbitron text-cyan-300 font-bold">CYBER SOLDIER</div>
+        </div>
+        <div class="bg-slate-950/90 rounded-lg p-1 border border-rose-500/40">
+          <div class="text-[10px] text-rose-300 font-bold">🌹 1 Coin</div>
+          <div class="text-sm my-0.5">⚙️🔥</div>
+          <div class="text-[9px] font-orbitron text-rose-400 font-bold">CHAINSAW MECH</div>
+        </div>
+        <div class="bg-slate-950/90 rounded-lg p-1 border border-pink-500/40">
+          <div class="text-[10px] text-pink-300 font-bold">💖 10 Coins</div>
+          <div class="text-sm my-0.5">🕷️🚀</div>
+          <div class="text-[9px] font-orbitron text-pink-400 font-bold">SPIDER TANK</div>
+        </div>
+        <div class="bg-slate-950/90 rounded-lg p-1 border border-amber-500/60 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+          <div class="text-[10px] text-amber-300 font-bold">🍩 30 Coins</div>
+          <div class="text-sm my-0.5">🔨⚡</div>
+          <div class="text-[9px] font-orbitron text-amber-400 font-bold">THUNDER TITAN</div>
+        </div>
+        <div class="bg-gradient-to-b from-purple-950 to-slate-950 rounded-lg p-1 border border-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.35)]">
+          <div class="text-[10px] text-yellow-300 font-black">🌌 1000c</div>
+          <div class="text-sm my-0.5">🐉☄️</div>
+          <div class="text-[9px] font-orbitron text-yellow-300 font-black">CYBER DRAGON</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: INTERACTIVE SIMULATOR & DIRECTOR CONTROL PANEL -->
+  <div class="w-[430px] h-[818px] bg-slate-900/95 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-2xl">
+    <div class="space-y-3 overflow-y-auto pr-1">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div>
+          <h1 class="font-orbitron font-black text-base text-cyan-400 tracking-wide">DIRECTOR SIMULATOR v3.0</h1>
+          <p class="text-xs text-slate-400">Multi-Part Procedural Mecha & Citadel Engine</p>
+        </div>
+        <button id="btn-audio" onclick="toggleAudio()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-orbitron font-bold transition cursor-pointer">
+          🔊 SFX: ON
+        </button>
+      </div>
+
+      <!-- Step 1: Select Active Country for Testing -->
+      <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+        <div class="text-xs font-orbitron text-slate-400 mb-2 font-bold">1. SELECT VIEWER FACTION (COUNTRY):</div>
+        <div class="grid grid-cols-4 gap-2" id="faction-selector">
+          <button onclick="selectFaction('US')" id="fac-US" class="fac-btn py-2 rounded-lg font-bold text-xs border-2 border-cyan-400 bg-cyan-950/60 text-white cursor-pointer">🇺🇸 USA</button>
+          <button onclick="selectFaction('UK')" id="fac-UK" class="fac-btn py-2 rounded-lg font-bold text-xs border border-slate-700 bg-slate-900 text-slate-300 cursor-pointer">🇬🇧 UK</button>
+          <button onclick="selectFaction('BR')" id="fac-BR" class="fac-btn py-2 rounded-lg font-bold text-xs border border-slate-700 bg-slate-900 text-slate-300 cursor-pointer">🇧🇷 BRAZIL</button>
+          <button onclick="selectFaction('JP')" id="fac-JP" class="fac-btn py-2 rounded-lg font-bold text-xs border border-slate-700 bg-slate-900 text-slate-300 cursor-pointer">🇯🇵 JAPAN</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Spawn Multi-Part Mecha Units -->
+      <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-2">
+        <div class="text-xs font-orbitron text-slate-400 font-bold">2. SIMULATE TIKTOK GIFTS (SPAWN MECHAS):</div>
+        
+        <button onclick="triggerSpawn(0)" class="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-between text-xs font-bold transition cursor-pointer">
+          <span>💬 Free Flag Comment (x3 Cyber Soldiers)</span>
+          <span class="text-cyan-400 font-orbitron">FREE</span>
+        </button>
+
+        <button onclick="triggerSpawn(1)" class="w-full py-2 px-3 rounded-lg bg-rose-950/70 hover:bg-rose-900/80 border border-rose-500/50 flex items-center justify-between text-xs font-bold transition cursor-pointer">
+          <span>🌹 Send Rose (Dual-Chainsaw Berserker)</span>
+          <span class="text-rose-300 font-orbitron">1 COIN</span>
+        </button>
+
+        <button onclick="triggerSpawn(2)" class="w-full py-2 px-3 rounded-lg bg-pink-950/70 hover:bg-pink-900/80 border border-pink-500/50 flex items-center justify-between text-xs font-bold transition cursor-pointer">
+          <span>💖 Send Heart (4-Leg Spider Railgun Tank)</span>
+          <span class="text-pink-300 font-orbitron">10 COINS</span>
+        </button>
+
+        <button onclick="triggerSpawn(3)" class="w-full py-2.5 px-3 rounded-lg bg-amber-950/80 hover:bg-amber-900/90 border border-amber-400 flex items-center justify-between text-xs font-bold shadow-[0_0_15px_rgba(245,158,11,0.25)] transition cursor-pointer">
+          <span>🍩 Send Doughnut (GIGA THUNDER TITAN +500 HP)</span>
+          <span class="text-amber-300 font-orbitron">30 COINS</span>
+        </button>
+
+        <button onclick="triggerSpawn(4)" class="w-full py-3 px-3 rounded-xl bg-gradient-to-r from-purple-900 via-indigo-900 to-amber-900 hover:brightness-110 border-2 border-yellow-400 flex items-center justify-between text-xs font-black shadow-[0_0_25px_rgba(250,204,21,0.4)] transition cursor-pointer">
+          <span>🌌 SEND GALAXY (14-SEGMENT CYBER DRAGON + NUKE)</span>
+          <span class="text-yellow-300 font-orbitron">1000 COINS</span>
+        </button>
+      </div>
+
+      <!-- Step 3: Drama & Pay-to-Win Triggers -->
+      <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-2">
+        <div class="text-xs font-orbitron text-slate-400 font-bold">3. DRAMA & COMEBACK TRIGGERS:</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="triggerSOS()" class="py-2 px-2 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-500 text-red-200 text-xs font-bold transition cursor-pointer">
+            🚨 Trigger SOS (12% HP)
+          </button>
+          <button onclick="triggerAllOutWar()" class="py-2 px-2 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-400 text-indigo-200 text-xs font-bold transition cursor-pointer">
+            ⚔️ Chaos Wave (All 4)
+          </button>
+        </div>
+        <div class="flex items-center justify-between pt-1 text-xs text-slate-300">
+          <span>🤖 Auto-Simulate Organic Live Traffic:</span>
+          <input type="checkbox" id="auto-bot" checked class="w-4 h-4 accent-cyan-400 cursor-pointer">
+        </div>
+      </div>
+
+      <!-- Technical Upgrade Highlights -->
+      <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-[11px] text-slate-300 space-y-1">
+        <div class="font-orbitron font-bold text-cyan-400 text-xs mb-1">✨ WHAT'S NEW IN v3.0:</div>
+        <div>• <b>Zero Basic Circles:</b> Multi-part procedural rigs (swinging arms, 4-leg IK spider walk, winged hammer boss, 14-joint spine dragon).</div>
+        <div>• <b>Cyber Citadels:</b> Octagonal corner fortresses with auto-tracking defense turrets, catch-up HP bars & smoke damage states.</div>
+        <div>• <b>Center Overdrive Core:</b> Faction controlling the center zone gets +35% attack speed & neon overdrive lightning.</div>
+        <div>• <b>Combat Juice:</b> Hit-stop freeze frames, ground cracks, armor shatter debris, shell casings & WebSocket ready (<code class="text-amber-300">ws://localhost:8080</code>).</div>
+      </div>
+    </div>
+
+    <!-- Footer Status -->
+    <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+      <span>WebSocket: <b id="ws-status" class="text-amber-400"> Listening ws://localhost:8080</b></span>
+      <span>60 FPS Canvas Engine</span>
+    </div>
+  </div>
+
+<script>
+// ============================================================================
+// 1. WEB AUDIO SYNTHESIZER (NO EXTERNAL MP3 NEEDED)
+// ============================================================================
+let audioCtx = null;
+let soundEnabled = true;
+
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function toggleAudio() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('btn-audio');
+  btn.textContent = soundEnabled ? '🔊 SFX: ON' : '🔇 SFX: OFF';
+  btn.className = soundEnabled 
+    ? 'px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-orbitron font-bold transition cursor-pointer'
+    : 'px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-orbitron font-bold transition cursor-pointer';
+}
+
+function playSFX(type) {
+  if (!soundEnabled) return;
+  initAudio();
+  const now = audioCtx.currentTime;
+
+  if (type === 'slash') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(290, now);
+    osc.frequency.exponentialRampToValueAtTime(75, now + 0.07);
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.07);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.07);
+  } 
+  else if (type === 'railgun') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(920, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.16);
+    gain.gain.setValueAtTime(0.09, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.16);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.16);
+  }
+  else if (type === 'hammer') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(130, now);
+    osc.frequency.exponentialRampToValueAtTime(28, now + 0.35);
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.35);
+  }
+  else if (type === 'nuke') {
+    [110, 165, 220, 55].forEach((freq) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(22, now + 1.1);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.linearRampToValueAtTime(0.005, now + 1.1);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 1.1);
+    });
+  }
+}
+
+// ============================================================================
+// 2. GAME CONFIGURATION & FACTIONS
+// ============================================================================
+const canvas = document.getElementById('battleCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+const FACTIONS = {
+  US: { id: 'US', name: 'USA', flag: '🇺🇸', color: '#00f0ff', dark: '#0369a1', x: 74, y: 185, wins: 0 },
+  UK: { id: 'UK', name: 'UK', flag: '🇬🇧', color: '#ff2a85', dark: '#9d174d', x: W - 74, y: 185, wins: 0 },
+  BR: { id: 'BR', name: 'BRAZIL', flag: '🇧🇷', color: '#00ff66', dark: '#15803d', x: 74, y: H - 195, wins: 0 },
+  JP: { id: 'JP', name: 'JAPAN', flag: '🇯🇵', color: '#ffbe0b', dark: '#b45309', x: W - 74, y: H - 195, wins: 0 }
+};
+
+let selectedFaction = 'US';
+let frameCount = 0;
+let hitStopFrames = 0;
+let screenShake = 0;
+let centerOwner = null;
+let centerProgress = 0; // -100 to 100
+
+// Top Donator Tracking
+let topEmperor = { user: 'CryptoWhale_99', country: 'US', coins: 1250, avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=King' };
+const donatorLedger = { 'CryptoWhale_99': 1250 };
+
+const SAMPLE_NAMES = [
+  'ShadowStriker', 'NeonViper', 'ApexPredator', 'CyberSamurai', 'Drako_US',
+  'LondonCalling', 'RioKing_BR', 'TokyoDrift99', 'AlphaWolf', 'ByteKnight',
+  'Maximus_VIP', 'StarLord_X', 'ZeroCool', 'Valkyrie_77', 'OmegaBoss'
+];
+
+const avatarCache = {};
+function getAvatar(username) {
+  if (!avatarCache[username]) {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`;
+    avatarCache[username] = img;
+  }
+  return avatarCache[username];
+}
+
+// ============================================================================
+// 3. CYBER CITADEL FORTRESSES (BASES)
+// ============================================================================
+class CyberCitadel {
+  constructor(fac) {
+    this.fac = fac;
+    this.x = fac.x;
+    this.y = fac.y;
+    this.maxHp = 5000;
+    this.hp = 5000;
+    this.catchupHp = 5000; // Fighting-game white bar
+    this.radius = 44;
+    this.turretAngle = 0;
+    this.fireCooldown = 0;
+    this.shieldRot = Math.random() * Math.PI * 2;
+    this.hitFlash = 0;
+  }
+
+  update() {
+    this.shieldRot += 0.015;
+    if (this.hitFlash > 0) this.hitFlash--;
+    if (this.catchupHp > this.hp) {
+      this.catchupHp -= Math.max(4, (this.catchupHp - this.hp) * 0.08);
+    } else {
+      this.catchupHp = this.hp;
+    }
+
+    // Smoke particles when damaged below 50%
+    if (this.hp > 0 && this.hp < this.maxHp * 0.5 && frameCount % 8 === 0) {
+      particles.push({
+        x: this.x + (Math.random() - 0.5) * 45,
+        y: this.y + (Math.random() - 0.5) * 45,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: -1.2 - Math.random(),
+        size: 5 + Math.random() * 6,
+        color: 'rgba(30,41,59,0.75)',
+        life: 35, maxLife: 35, type: 'smoke'
+      });
+    }
+
+    if (this.hp <= 0) return;
+
+    // Auto-Defense Turret Logic
+    this.fireCooldown--;
+    let nearest = null;
+    let minDist = 175;
+    for (const u of units) {
+      if (u.fac.id !== this.fac.id && u.hp > 0) {
+        const d = Math.hypot(u.x - this.x, u.y - this.y);
+        if (d < minDist) { minDist = d; nearest = u; }
+      }
+    }
+
+    if (nearest) {
+      const targetAngle = Math.atan2(nearest.y - this.y, nearest.x - this.x);
+      this.turretAngle = targetAngle;
+      if (this.fireCooldown <= 0) {
+        this.fireCooldown = 38;
+        projectiles.push({
+          x: this.x + Math.cos(this.turretAngle) * 26,
+          y: this.y + Math.sin(this.turretAngle) * 26,
+          vx: Math.cos(this.turretAngle) * 7.5,
+          vy: Math.sin(this.turretAngle) * 7.5,
+          fac: this.fac,
+          dmg: 22,
+          color: this.fac.color,
+          type: 'bolt'
+        });
+      }
+    } else {
+      this.turretAngle += 0.01;
+    }
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    if (this.hp <= 0) {
+      // Destroyed Ruin State
+      ctx.fillStyle = '#1e293b';
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
+      drawOctagon(ctx, 0, 0, this.radius);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '900 11px Orbitron';
+      ctx.textAlign = 'center';
+      ctx.fillText('DESTROYED', 0, 4);
+      ctx.restore();
+      return;
+    }
+
+    // Outer Rotating Energy Shield
+    ctx.save();
+    ctx.rotate(this.shieldRot);
+    ctx.strokeStyle = this.fac.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([14, 10]);
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius + 7, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Base Octagonal Metallic Hull
+    ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#0f172a';
+    ctx.strokeStyle = this.fac.color;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = this.fac.color;
+    ctx.shadowBlur = 14;
+    drawOctagon(ctx, 0, 0, this.radius);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Corner Armor Bastions
+    for (let i = 0; i < 4; i++) {
+      ctx.save();
+      ctx.rotate((Math.PI / 2) * i + Math.PI / 4);
+      ctx.fillStyle = this.fac.dark;
+      ctx.strokeStyle = this.fac.color;
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(this.radius - 12, -8, 14, 16);
+      ctx.strokeRect(this.radius - 12, -8, 14, 16);
+      ctx.restore();
+    }
+
+    // Inner Reactor Core (Pulsing)
+    const pulse = 14 + Math.sin(frameCount * 0.1) * 2.5;
+    const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, pulse);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.5, this.fac.color);
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dual Auto-Defense Turret on Roof
+    ctx.save();
+    ctx.rotate(this.turretAngle);
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.5;
+    // Twin barrels
+    ctx.fillRect(8, -6, 20, 4);
+    ctx.fillRect(8, 2, 20, 4);
+    // Turret breech
+    ctx.beginPath();
+    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // Country Flag & Label
+    ctx.font = 'bold 12px Rajdhani';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`${this.fac.flag} ${this.fac.name}`, 0, -this.radius - 22);
+
+    // AAA Fighting-Game Style Catch-up HP Bar
+    const bw = 78, bh = 8;
+    const bx = -bw / 2, by = -this.radius - 17;
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    // White delayed damage bar
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(bx, by, bw * Math.max(0, this.catchupHp / this.maxHp), bh);
+    // Actual colored HP bar
+    ctx.fillStyle = this.hp < this.maxHp * 0.25 ? '#ef4444' : this.fac.color;
+    ctx.fillRect(bx, by, bw * Math.max(0, this.hp / this.maxHp), bh);
+    // HP Numbers
+    ctx.font = '700 9px Orbitron';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`${Math.ceil(this.hp)}`, 0, by + 7);
+
+    ctx.restore();
+  }
+}
+
+function drawOctagon(ctx, cx, cy, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (Math.PI / 4) * i + Math.PI / 8;
+    const px = cx + Math.cos(a) * r;
+    const py = cy + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+// ============================================================================
+// 4. PROCEDURAL MULTI-PART MECHA & HERO UNITS (ZERO CIRCLES!)
+// ============================================================================
+class MechaUnit {
+  constructor(fac, tier, username) {
+    this.fac = fac;
+    this.tier = tier;
+    this.username = username;
+    this.avatar = getAvatar(username);
+
+    const angle = Math.atan2(H / 2 - fac.y, W / 2 - fac.x) + (Math.random() - 0.5) * 0.7;
+    const spawnDist = 52;
+    this.x = fac.x + Math.cos(angle) * spawnDist;
+    this.y = fac.y + Math.sin(angle) * spawnDist;
+
+    this.angle = angle;
+    this.turretAngle = angle;
+    this.walkCycle = Math.random() * 10;
+    this.swingPhase = 0;
+    this.recoil = 0;
+    this.hitFlash = 0;
+    this.shootCooldown = 20;
+    this.slashHistory = []; // For neon weapon trail
+
+    // Configure Stats by Tier
+    if (tier === 0) {
+      // Cyber Soldier (Hex Armor + Energy Blade)
+      this.name = 'Cyber Soldier';
+      this.maxHp = 45;
+      this.speed = 2.15;
+      this.size = 13;
+      this.dmg = 9;
+      this.mass = 1;
+    } else if (tier === 1) {
+      // Dual-Chainsaw Berserker (Rose - 1c)
+      this.name = 'Chainsaw Mech';
+      this.maxHp = 190;
+      this.speed = 2.4;
+      this.size = 19;
+      this.dmg = 22;
+      this.mass = 2.2;
+    } else if (tier === 2) {
+      // 4-Leg Spider Railgun Mecha (Heart - 10c)
+      this.name = 'Spider Mecha';
+      this.maxHp = 520;
+      this.speed = 1.65;
+      this.size = 24;
+      this.dmg = 34;
+      this.mass = 4.0;
+    } else if (tier === 3) {
+      // GIGA COLOSSUS WARLORD (Donut - 30c)
+      this.name = 'THUNDER TITAN';
+      this.maxHp = 2600;
+      this.speed = 1.35;
+      this.size = 34;
+      this.dmg = 75;
+      this.mass = 9.5;
+      this.hammerTimer = 65;
+    } else if (tier === 4) {
+      // 14-SEGMENT MECHA CYBER DRAGON (Galaxy - 1000c)
+      this.name = 'CYBER DRAGON';
+      this.maxHp = 8500;
+      this.speed = 2.65;
+      this.size = 38;
+      this.dmg = 140;
+      this.mass = 20;
+      this.segments = [];
+      for (let i = 0; i < 14; i++) {
+        this.segments.push({ x: this.x - i * 10, y: this.y, angle: this.angle });
+      }
+    }
+
+    this.hp = this.maxHp;
+    this.catchupHp = this.maxHp;
+    this.vx = Math.cos(angle) * this.speed;
+    this.vy = Math.sin(angle) * this.speed;
+  }
+
+  update() {
+    const isOverdrive = centerOwner === this.fac.id;
+    const speedMult = isOverdrive ? 1.32 : 1.0;
+
+    this.walkCycle += 0.22 * speedMult;
+    this.swingPhase += (this.tier === 1 ? 0.34 : 0.18) * speedMult;
+    if (this.recoil > 0) this.recoil *= 0.82;
+    if (this.hitFlash > 0) this.hitFlash--;
+
+    if (this.catchupHp > this.hp) {
+      this.catchupHp -= Math.max(2, (this.catchupHp - this.hp) * 0.1);
+    } else {
+      this.catchupHp = this.hp;
+    }
+
+    // Find closest enemy unit or enemy citadel
+    let target = null;
+    let minDist = 9999;
+
+    for (const u of units) {
+      if (u.fac.id !== this.fac.id && u.hp > 0) {
+        const d = Math.hypot(u.x - this.x, u.y - this.y);
+        if (d < minDist) { minDist = d; target = u; }
+      }
+    }
+    for (const key in citadels) {
+      const c = citadels[key];
+      if (c.fac.id !== this.fac.id && c.hp > 0) {
+        const d = Math.hypot(c.x - this.x, c.y - this.y) - 25;
+        if (d < minDist) { minDist = d; target = c; }
+      }
+    }
+
+    if (target) {
+      const desiredAngle = Math.atan2(target.y - this.y, target.x - this.x);
+      // Smooth steering
+      let diff = desiredAngle - this.angle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      this.angle += diff * (this.tier === 4 ? 0.09 : 0.14);
+      this.turretAngle = desiredAngle;
+    }
+
+    // Apply velocity towards angle
+    const targetVx = Math.cos(this.angle) * this.speed * speedMult;
+    const targetVy = Math.sin(this.angle) * this.speed * speedMult;
+    this.vx = this.vx * 0.85 + targetVx * 0.15;
+    this.vy = this.vy * 0.85 + targetVy * 0.15;
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    // Arena Boundary Bounce
+    const pad = this.size + 10;
+    if (this.x < pad) { this.x = pad; this.vx *= -0.8; this.angle = Math.atan2(this.vy, this.vx); }
+    if (this.x > W - pad) { this.x = W - pad; this.vx *= -0.8; this.angle = Math.atan2(this.vy, this.vx); }
+    if (this.y < 105 + pad) { this.y = 105 + pad; this.vy *= -0.8; this.angle = Math.atan2(this.vy, this.vx); }
+    if (this.y > H - 115 - pad) { this.y = H - 115 - pad; this.vy *= -0.8; this.angle = Math.atan2(this.vy, this.vx); }
+
+    // Record Slash Trail for Tier 1 Chainsaw Mech
+    if (this.tier === 1) {
+      const bladeTipX = this.x + Math.cos(this.angle + Math.sin(this.swingPhase) * 0.9) * (this.size + 18);
+      const bladeTipY = this.y + Math.sin(this.angle + Math.sin(this.swingPhase) * 0.9) * (this.size + 18);
+      this.slashHistory.push({ x: bladeTipX, y: bladeTipY });
+      if (this.slashHistory.length > 7) this.slashHistory.shift();
+    }
+
+    // Tier 2 Spider Mecha: Auto Railgun + Brass Shell Ejection
+    if (this.tier === 2 && target) {
+      this.shootCooldown--;
+      if (this.shootCooldown <= 0) {
+        this.shootCooldown = isOverdrive ? 26 : 38;
+        this.recoil = 7;
+        playSFX('railgun');
+        // Spawn Railgun Beam Projectile
+        projectiles.push({
+          x: this.x + Math.cos(this.turretAngle) * 24,
+          y: this.y + Math.sin(this.turretAngle) * 24,
+          vx: Math.cos(this.turretAngle) * 11,
+          vy: Math.sin(this.turretAngle) * 11,
+          fac: this.fac,
+          dmg: 38,
+          color: this.fac.color,
+          type: 'railgun'
+        });
+        // Eject spinning brass shell casing onto floor
+        const sideAngle = this.turretAngle + Math.PI / 2;
+        shellCasings.push({
+          x: this.x, y: this.y,
+          vx: Math.cos(sideAngle) * (1.8 + Math.random()),
+          vy: Math.sin(sideAngle) * (1.8 + Math.random()),
+          rot: Math.random() * 6,
+          vRot: 0.25,
+          life: 160
+        });
+      }
+    }
+
+    // Tier 3 Giga Titan: Periodic Thunder Warhammer Ground Slam
+    if (this.tier === 3) {
+      this.hammerTimer--;
+      if (this.hammerTimer <= 0) {
+        this.hammerTimer = isOverdrive ? 55 : 80;
+        this.triggerWarhammerSlam();
+      }
+    }
+
+    // Tier 4 Cyber Dragon: Multi-segment IK Spine & Plasma Breath
+    if (this.tier === 4) {
+      let prevX = this.x;
+      let prevY = this.y;
+      const segSpacing = 12;
+      for (let i = 0; i < this.segments.length; i++) {
+        const seg = this.segments[i];
+        const dx = prevX - seg.x;
+        const dy = prevY - seg.y;
+        const ang = Math.atan2(dy, dx);
+        seg.angle = ang;
+        seg.x = prevX - Math.cos(ang) * segSpacing;
+        seg.y = prevY - Math.sin(ang) * segSpacing;
+        prevX = seg.x;
+        prevY = seg.y;
+      }
+
+      // Breath Plasma Fire stream every 4 frames
+      if (frameCount % 4 === 0 && target) {
+        for (let k = 0; k < 2; k++) {
+          const spread = (Math.random() - 0.5) * 0.45;
+          particles.push({
+            x: this.x + Math.cos(this.angle) * 26,
+            y: this.y + Math.sin(this.angle) * 26,
+            vx: Math.cos(this.angle + spread) * (6 + Math.random() * 3),
+            vy: Math.sin(this.angle + spread) * (6 + Math.random() * 3),
+            size: 7 + Math.random() * 7,
+            color: k % 2 === 0 ? this.fac.color : '#fde047',
+            life: 22, maxLife: 22, type: 'plasma'
+          });
+        }
+      }
+    }
+  }
+
+  triggerWarhammerSlam() {
+    playSFX('hammer');
+    screenShake = 8;
+    const slamX = this.x + Math.cos(this.angle) * (this.size + 14);
+    const slamY = this.y + Math.sin(this.angle) * (this.size + 14);
+
+    // Spawn Persistent Ground Crack Decal
+    groundCracks.push({
+      x: slamX, y: slamY,
+      color: this.fac.color,
+      alpha: 0.95,
+      radius: 68,
+      branches: Array.from({ length: 7 }, (_, i) => ({
+        angle: (Math.PI * 2 / 7) * i + (Math.random() - 0.5) * 0.4,
+        len: 30 + Math.random() * 38
+      }))
+    });
+
+    // Expanding Shockwave Ring
+    shockwaves.push({ x: slamX, y: slamY, r: 8, maxR: 92, color: this.fac.color, alpha: 1 });
+
+    // AOE Damage & Knockback to nearby enemies
+    for (const u of units) {
+      if (u.fac.id !== this.fac.id && u.hp > 0) {
+        const d = Math.hypot(u.x - slamX, u.y - slamY);
+        if (d < 92) {
+          u.takeDamage(55, this);
+          const kbAngle = Math.atan2(u.y - slamY, u.x - slamX);
+          u.vx += Math.cos(kbAngle) * 9;
+          u.vy += Math.sin(kbAngle) * 9;
+        }
+      }
+    }
+  }
+
+  takeDamage(amount, attacker) {
+    this.hp -= amount;
+    this.hitFlash = 4;
+
+    if (amount >= 30) {
+      floatingTexts.push({
+        x: this.x + (Math.random() - 0.5) * 16,
+        y: this.y - this.size,
+        text: `-${Math.round(amount)}`,
+        color: amount >= 70 ? '#fde047' : '#ffffff',
+        size: amount >= 70 ? 14 : 11,
+        life: 28
+      });
+    }
+
+    if (this.hp <= 0) {
+      this.shatterDeath();
+    }
+  }
+
+  shatterDeath() {
+    // Spawn Metallic Armor Plates & Gears Debris (Ragdoll Shatter)
+    const pieceCount = this.tier === 0 ? 5 : this.tier * 5 + 6;
+    for (let i = 0; i < pieceCount; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 1.5 + Math.random() * 4.5;
+      debrisList.push({
+        x: this.x, y: this.y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        rot: Math.random() * 6,
+        vRot: (Math.random() - 0.5) * 0.3,
+        size: 4 + Math.random() * (this.tier * 2 + 4),
+        color: i % 2 === 0 ? this.fac.color : '#475569',
+        shape: i % 3 === 0 ? 'gear' : 'plate',
+        life: 95
+      });
+    }
+  }
+
+  draw(ctx) {
+    const isOverdrive = centerOwner === this.fac.id;
+
+    // ------------------------------------------------------------------------
+    // TIER 4: 14-SEGMENT MECHA CYBER DRAGON (Drawn from Tail to Head)
+    // ------------------------------------------------------------------------
+    if (this.tier === 4) {
+      for (let i = this.segments.length - 1; i >= 0; i--) {
+        const seg = this.segments[i];
+        const ratio = 1 - i / this.segments.length;
+        const r = 9 + ratio * 18;
+
+        ctx.save();
+        ctx.translate(seg.x, seg.y);
+        ctx.rotate(seg.angle);
+
+        // Mechanical Cyber Wings on Segment 3 & 7
+        if (i === 2 || i === 6) {
+          const flap = Math.sin(frameCount * 0.22 + i) * 0.35;
+          [-1, 1].forEach(dir => {
+            ctx.save();
+            ctx.scale(1, dir);
+            ctx.rotate(flap);
+            ctx.fillStyle = this.fac.color + '88';
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 8);
+            ctx.lineTo(-22, 46);
+            ctx.lineTo(14, 34);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+          });
+        }
+
+        // Vertebrae Armor Segment Plate (Hexagonal Spine)
+        ctx.fillStyle = i % 2 === 0 ? '#0f172a' : this.fac.dark;
+        ctx.strokeStyle = i % 2 === 0 ? '#fde047' : this.fac.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(r, 0);
+        ctx.lineTo(-r * 0.5, r * 0.85);
+        ctx.lineTo(-r, 0);
+        ctx.lineTo(-r * 0.5, -r * 0.85);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // Draw Neon Slash Trail for Tier 1 Chainsaw Mech
+    if (this.tier === 1 && this.slashHistory.length > 2) {
+      ctx.save();
+      ctx.strokeStyle = this.fac.color;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = this.fac.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      this.slashHistory.forEach((pt, idx) => {
+        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    // Overdrive Aura Ring if controlling Center Core
+    if (isOverdrive) {
+      ctx.strokeStyle = this.fac.color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size + 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.save();
+    ctx.rotate(this.angle);
+
+    // ------------------------------------------------------------------------
+    // TIER 0: CYBER SOLDIER (Angular Mech Suit + Swinging Energy Blade)
+    // ------------------------------------------------------------------------
+    if (this.tier === 0) {
+      const swing = Math.sin(this.swingPhase) * 0.65;
+      // Right Mechanical Arm + Glowing Plasma Blade
+      ctx.save();
+      ctx.translate(4, 10);
+      ctx.rotate(swing);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = this.fac.color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(0, -2);
+      ctx.lineTo(18, 0);
+      ctx.lineTo(2, 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // Shoulder Pauldrons
+      ctx.fillStyle = this.fac.dark;
+      ctx.strokeStyle = this.fac.color;
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(-6, -13, 10, 6);
+      ctx.strokeRect(-6, -13, 10, 6);
+      ctx.fillRect(-6, 7, 10, 6);
+      ctx.strokeRect(-6, 7, 10, 6);
+
+      // Hexagonal Armored Torso
+      ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#0f172a';
+      drawPolygon(ctx, 0, 0, 11, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Glowing Cyber Visor
+      ctx.fillStyle = this.fac.color;
+      ctx.fillRect(3, -5, 5, 10);
+    }
+
+    // ------------------------------------------------------------------------
+    // TIER 1: DUAL-CHAINSAW BERSERKER (Rose 1c - Articulated Twin Saws)
+    // ------------------------------------------------------------------------
+    else if (this.tier === 1) {
+      const leftSwing = Math.sin(this.swingPhase) * 0.75;
+      const rightSwing = -Math.sin(this.swingPhase) * 0.75;
+
+      // Draw Twin Chainsaw Swords on Articulated Arms
+      [ { y: -14, rot: leftSwing }, { y: 14, rot: rightSwing } ].forEach(arm => {
+        ctx.save();
+        ctx.translate(2, arm.y);
+        ctx.rotate(arm.rot);
+        // Blade chassis
+        ctx.fillStyle = '#334155';
+        ctx.strokeStyle = this.fac.color;
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(0, -3, 24, 6);
+        ctx.strokeRect(0, -3, 24, 6);
+        // Animated鋸 Saw Teeth
+        ctx.fillStyle = '#fde047';
+        const toothOffset = (frameCount * 2) % 6;
+        for (let tx = toothOffset; tx < 22; tx += 6) {
+          ctx.beginPath();
+          ctx.moveTo(tx, -3); ctx.lineTo(tx + 3, -7); ctx.lineTo(tx + 5, -3);
+          ctx.moveTo(tx, 3);  ctx.lineTo(tx + 3, 7);  ctx.lineTo(tx + 5, 3);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
+
+      // Heavy Berserker Chassis + Exhaust Vents
+      ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#1e293b';
+      ctx.strokeStyle = this.fac.color;
+      ctx.lineWidth = 2;
+      drawPolygon(ctx, 0, 0, 17, 6);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // ------------------------------------------------------------------------
+    // TIER 2: 4-LEG SPIDER RAILGUN MECHA (Heart 10c - IK Legs + 360 Turret)
+    // ------------------------------------------------------------------------
+    else if (this.tier === 2) {
+      // 4 Articulated Mechanical Spider Legs (2 Left, 2 Right)
+      ctx.strokeStyle = this.fac.color;
+      ctx.lineWidth = 3;
+      const legAngles = [-0.75, -2.35, 0.75, 2.35];
+      legAngles.forEach((baseAng, idx) => {
+        const step = Math.sin(this.walkCycle + idx * Math.PI * 0.5) * 0.32;
+        const a = baseAng + step;
+        const kneeX = Math.cos(a) * 18;
+        const kneeY = Math.sin(a) * 18;
+        const footX = Math.cos(a) * 30;
+        const footY = Math.sin(a) * 30;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(kneeX, kneeY);
+        ctx.lineTo(footX, footY);
+        ctx.stroke();
+
+        // Foot pad
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(footX, footY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Armored Octagonal Spider Body
+      ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#0f172a';
+      ctx.strokeStyle = this.fac.color;
+      ctx.lineWidth = 2.5;
+      drawPolygon(ctx, 0, 0, 19, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Independent 360-Degree Twin Railgun Turret with Recoil
+      ctx.save();
+      ctx.rotate(this.turretAngle - this.angle);
+      ctx.translate(-this.recoil, 0);
+      ctx.fillStyle = '#1e293b';
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(6, -8, 22, 5);
+      ctx.strokeRect(6, -8, 22, 5);
+      ctx.fillRect(6, 3, 22, 5);
+      ctx.strokeRect(6, 3, 22, 5);
+      ctx.restore();
+    }
+
+    // ------------------------------------------------------------------------
+    // TIER 3: GIGA COLOSSUS WARLORD (Donut 30c - Energy Wings + Thunder Hammer)
+    // ------------------------------------------------------------------------
+    else if (this.tier === 3) {
+      // Glowing Cybernetic Energy Wings on Back
+      const wingSpread = Math.sin(frameCount * 0.12) * 0.15;
+      [-1, 1].forEach(dir => {
+        ctx.save();
+        ctx.scale(1, dir);
+        ctx.rotate(wingSpread);
+        const grad = ctx.createLinearGradient(0, 10, -28, 48);
+        grad.addColorStop(0, '#fde047');
+        grad.addColorStop(1, this.fac.color + '22');
+        ctx.fillStyle = grad;
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-6, 12);
+        ctx.lineTo(-32, 46);
+        ctx.lineTo(-8, 42);
+        ctx.lineTo(6, 22);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // Swinging Giant Thunder Warhammer
+      const hammerSwing = Math.sin(this.swingPhase * 0.8) * 0.95;
+      ctx.save();
+      ctx.translate(6, 18);
+      ctx.rotate(hammerSwing);
+      // Handle
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(28, 0);
+      ctx.stroke();
+      // Warhammer Head
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 12;
+      ctx.fillRect(22, -13, 12, 26);
+      ctx.strokeRect(22, -13, 12, 26);
+      ctx.restore();
+
+      // Golden Royal Colossus Armor Body
+      ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#1e1b4b';
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 3.5;
+      ctx.shadowColor = '#fde047';
+      ctx.shadowBlur = 15;
+      drawPolygon(ctx, 0, 0, 27, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // ------------------------------------------------------------------------
+    // TIER 4 HEAD: CYBER DRAGON HEAD + JAWS + HORNS
+    // ------------------------------------------------------------------------
+    else if (this.tier === 4) {
+      ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#0f172a';
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#fde047';
+      ctx.shadowBlur = 18;
+      // Dragon Snout & Horns
+      ctx.beginPath();
+      ctx.moveTo(32, 0);
+      ctx.lineTo(6, 18);
+      ctx.lineTo(-22, 26); // Horn
+      ctx.lineTo(-12, 8);
+      ctx.lineTo(-12, -8);
+      ctx.lineTo(-22, -26); // Horn
+      ctx.lineTo(6, -18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    ctx.restore(); // End rotation
+
+    // Draw Viewer Avatar Cockpit in Chest (For Tier 1, 2, 3, 4)
+    if (this.tier >= 1) {
+      const avRadius = this.tier >= 3 ? 14 : 10;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, avRadius, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      if (this.avatar && this.avatar.complete) {
+        ctx.drawImage(this.avatar, -avRadius, -avRadius, avRadius * 2, avRadius * 2);
+      }
+      ctx.restore();
+
+      ctx.strokeStyle = this.tier >= 3 ? '#fde047' : this.fac.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, avRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Floating Boss HP Bar & VIP Nameplate for Tier 2, 3, 4
+    if (this.tier >= 2) {
+      const bw = this.tier >= 3 ? 64 : 42;
+      const bh = 5;
+      const bx = -bw / 2;
+      const by = -this.size - 16;
+
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(bx, by, bw * Math.max(0, this.catchupHp / this.maxHp), bh);
+      ctx.fillStyle = this.tier >= 3 ? '#fde047' : this.fac.color;
+      ctx.fillRect(bx, by, bw * Math.max(0, this.hp / this.maxHp), bh);
+
+      // VIP Username Tag
+      ctx.font = this.tier >= 3 ? '900 10px Orbitron' : '700 9px Rajdhani';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = this.tier >= 3 ? '#fef08a' : '#ffffff';
+      ctx.fillText(`${this.fac.flag} ${this.username}`, 0, by - 4);
+    }
+
+    ctx.restore();
+  }
+}
+
+function drawPolygon(ctx, cx, cy, r, sides) {
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const a = (Math.PI * 2 / sides) * i;
+    const px = cx + Math.cos(a) * r;
+    const py = cy + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+// ============================================================================
+// 5. WORLD ARRAYS & BATTLE ARENA SYSTEMS
+// ============================================================================
+const citadels = {
+  US: new CyberCitadel(FACTIONS.US),
+  UK: new CyberCitadel(FACTIONS.UK),
+  BR: new CyberCitadel(FACTIONS.BR),
+  JP: new CyberCitadel(FACTIONS.JP)
+};
+
+let units = [];
+let projectiles = [];
+let particles = [];
+let debrisList = [];
+let shellCasings = [];
+let groundCracks = [];
+let shockwaves = [];
+let floatingTexts = [];
+let orbitalBeams = [];
+
+// Center Power Core Logic
+function updateCenterCore() {
+  const cx = W / 2, cy = H / 2, cr = 56;
+  const counts = { US: 0, UK: 0, BR: 0, JP: 0 };
+
+  for (const u of units) {
+    if (Math.hypot(u.x - cx, u.y - cy) < cr + u.size) {
+      counts[u.fac.id] += (u.tier + 1);
+    }
+  }
+
+  let bestFac = null, maxScore = 0;
+  for (const k in counts) {
+    if (counts[k] > maxScore) { maxScore = counts[k]; bestFac = k; }
+  }
+
+  if (bestFac) {
+    if (centerOwner === bestFac) {
+      centerProgress = Math.min(100, centerProgress + 1.5);
+    } else {
+      centerProgress -= 2.0;
+      if (centerProgress <= 0) {
+        centerOwner = bestFac;
+        centerProgress = 25;
+      }
+    }
+  }
+}
+
+function drawArenaBackground(ctx) {
+  // 3D Perspective Cyber Grid
+  ctx.save();
+  ctx.strokeStyle = 'rgba(30, 41, 59, 0.55)';
+  ctx.lineWidth = 1;
+  const gridSize = 38;
+  const offset = (frameCount * 0.3) % gridSize;
+
+  for (let x = 0; x < W; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = offset; y < H; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Persistent Ground Cracks from Titan Warhammer Slams
+  for (let i = groundCracks.length - 1; i >= 0; i--) {
+    const gc = groundCracks[i];
+    gc.alpha -= 0.003;
+    if (gc.alpha <= 0) { groundCracks.splice(i, 1); continue; }
+    ctx.save();
+    ctx.translate(gc.x, gc.y);
+    ctx.strokeStyle = gc.color;
+    ctx.globalAlpha = gc.alpha;
+    ctx.lineWidth = 2;
+    gc.branches.forEach(b => {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(b.angle) * (b.len * 0.5), Math.sin(b.angle + 0.2) * (b.len * 0.5));
+      ctx.lineTo(Math.cos(b.angle) * b.len, Math.sin(b.angle) * b.len);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  // Center Overdrive Power Core
+  const cx = W / 2, cy = H / 2;
+  const ownerColor = centerOwner ? FACTIONS[centerOwner].color : '#475569';
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(frameCount * 0.01);
+  ctx.strokeStyle = ownerColor;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.arc(0, 0, 56, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Inner Overdrive Core Label
+  ctx.fillStyle = ownerColor + '22';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 48, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.font = '800 9px Orbitron';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = ownerColor;
+  ctx.fillText(centerOwner ? `⚡ ${FACTIONS[centerOwner].name} OVERDRIVE` : '⚡ CENTER CORE', cx, cy + 3);
+  ctx.restore();
+}
+
+// ============================================================================
+// 6. PHYSICS & COMBAT COLLISION ENGINE
+// ============================================================================
+function handleCollisions() {
+  // 1. Unit vs Unit Melee Combat
+  for (let i = 0; i < units.length; i++) {
+    const a = units[i];
+    if (a.hp <= 0) continue;
+
+    for (let j = i + 1; j < units.length; j++) {
+      const b = units[j];
+      if (b.hp <= 0) continue;
+
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      const minDist = a.size + b.size;
+
+      if (dist < minDist && dist > 0.001) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = minDist - dist;
+
+        // Separate overlapping units
+        const totalMass = a.mass + b.mass;
+        a.x -= nx * overlap * (b.mass / totalMass);
+        a.y -= ny * overlap * (b.mass / totalMass);
+        b.x += nx * overlap * (a.mass / totalMass);
+        b.y += ny * overlap * (a.mass / totalMass);
+
+        if (a.fac.id !== b.fac.id) {
+          // Enemy Collision -> Deal Melee Weapon Damage + Knockback
+          a.takeDamage(b.dmg * 0.25, b);
+          b.takeDamage(a.dmg * 0.25, a);
+
+          const knock = 3.6;
+          a.vx -= nx * knock * (b.mass / totalMass);
+          a.vy -= ny * knock * (b.mass / totalMass);
+          b.vx += nx * knock * (a.mass / totalMass);
+          b.vy += ny * knock * (a.mass / totalMass);
+
+          if (frameCount % 4 === 0) playSFX('slash');
+
+          // Hit-stop micro freeze when Heavy Bosses clash
+          if (a.tier >= 3 || b.tier >= 3) {
+            hitStopFrames = 2;
+            screenShake = 4;
+          }
+
+          // Clash Sparks
+          const mx = (a.x + b.x) / 2;
+          const my = (a.y + b.y) / 2;
+          for (let s = 0; s < 4; s++) {
+            particles.push({
+              x: mx, y: my,
+              vx: (Math.random() - 0.5) * 7,
+              vy: (Math.random() - 0.5) * 7,
+              size: 2.5,
+              color: '#fde047',
+              life: 12, maxLife: 12, type: 'spark'
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Unit vs Enemy Cyber Citadel Siege
+    for (const key in citadels) {
+      const cit = citadels[key];
+      if (cit.fac.id === a.fac.id || cit.hp <= 0) continue;
+
+      const dx = cit.x - a.x;
+      const dy = cit.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      const minDist = cit.radius + a.size;
+
+      if (dist < minDist) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        a.x = cit.x - nx * minDist;
+        a.y = cit.y - ny * minDist;
+        a.vx = -nx * 5.5;
+        a.vy = -ny * 5.5;
+
+        cit.hp = Math.max(0, cit.hp - a.dmg * 0.65);
+        cit.hitFlash = 3;
+        a.takeDamage(14, null);
+        checkSOSState();
+      }
+    }
+  }
+
+  // 3. Projectiles (Spider Railguns & Citadel Turrets)
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+
+    if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) {
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    let hit = false;
+    for (const u of units) {
+      if (u.fac.id !== p.fac.id && u.hp > 0) {
+        if (Math.hypot(u.x - p.x, u.y - p.y) < u.size + 6) {
+          u.takeDamage(p.dmg, null);
+          u.vx += p.vx * 0.25;
+          u.vy += p.vy * 0.25;
+          hit = true;
+          break;
+        }
+      }
+    }
+    if (hit) {
+      projectiles.splice(i, 1);
+    }
+  }
+
+  units = units.filter(u => u.hp > 0);
+}
+
+// ============================================================================
+// 7. SPAWNERS, SOS ALERTS & PAY-TO-WIN WHALE EVENTS
+// ============================================================================
+function selectFaction(id) {
+  selectedFaction = id;
+  document.querySelectorAll('.fac-btn').forEach(btn => {
+    btn.className = 'fac-btn py-2 rounded-lg font-bold text-xs border border-slate-700 bg-slate-900 text-slate-300 cursor-pointer';
+  });
+  const active = document.getElementById('fac-' + id);
+  active.className = 'fac-btn py-2 rounded-lg font-bold text-xs border-2 border-cyan-400 bg-cyan-950/70 text-white cursor-pointer';
+}
+
+function triggerSpawn(tier, customFac = null, customUser = null) {
+  const facId = customFac || selectedFaction;
+  const fac = FACTIONS[facId];
+  const user = customUser || SAMPLE_NAMES[Math.floor(Math.random() * SAMPLE_NAMES.length)];
+
+  const coinValues = [0, 1, 10, 30, 1000];
+  const coins = coinValues[tier];
+
+  if (coins > 0) {
+    donatorLedger[user] = (donatorLedger[user] || 0) + coins;
+    if (donatorLedger[user] > topEmperor.coins) {
+      topEmperor = { user, country: facId, coins: donatorLedger[user], avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${user}` };
+      updateEmperorHUD();
+    }
+  }
+
+  if (tier === 0) {
+    for (let i = 0; i < 3; i++) units.push(new MechaUnit(fac, 0, user));
+    addKillFeed(`${fac.flag} <b>${user}</b> deployed 3x Cyber Soldiers!`);
+  } else if (tier === 1) {
+    units.push(new MechaUnit(fac, 1, user));
+    playSFX('slash');
+    addKillFeed(`🌹 ${fac.flag} <b>${user}</b> summoned <b>Dual-Chainsaw Mech</b>!`);
+  } else if (tier === 2) {
+    units.push(new MechaUnit(fac, 2, user));
+    playSFX('railgun');
+    addKillFeed(`💖 ${fac.flag} <b>${user}</b> deployed <b>Spider Railgun Tank</b>!`);
+  } else if (tier === 3) {
+    // Donut Boss + Heal Friendly Citadel +500 HP
+    units.push(new MechaUnit(fac, 3, user));
+    const cit = citadels[facId];
+    if (cit.hp > 0) {
+      cit.hp = Math.min(cit.maxHp, cit.hp + 500);
+      floatingTexts.push({ x: cit.x, y: cit.y - 30, text: '+500 HP REPAIR!', color: '#4ade80', size: 13, life: 45 });
+    }
+    playSFX('hammer');
+    checkSOSState();
+    addKillFeed(`🍩 ${fac.flag} <b>${user}</b> unleashed <b>THUNDER TITAN</b> (+500 Base HP)!`);
+  } else if (tier === 4) {
+    // Whale Galaxy: 14-Segment Dragon + Orbital Nuke on Enemy Bases
+    units.push(new MechaUnit(fac, 4, user));
+    playSFX('nuke');
+    screenShake = 18;
+
+    for (const k in citadels) {
+      if (k !== facId && citadels[k].hp > 0) {
+        citadels[k].hp = Math.max(0, citadels[k].hp - 1400);
+        orbitalBeams.push({ x: citadels[k].x, y: citadels[k].y, color: fac.color, life: 40 });
+        floatingTexts.push({ x: citadels[k].x, y: citadels[k].y - 25, text: '-1,400 ORBITAL NUKE!', color: '#fde047', size: 14, life: 55 });
+      }
+    }
+    showWhaleCutIn(user, fac);
+    checkSOSState();
+    addKillFeed(`🌌 ${fac.flag} <b>${user}</b> DROPPED GALAXY! <b>MECHA DRAGON + ORBITAL NUKE</b>!`);
+  }
+}
+
+function updateEmperorHUD() {
+  document.getElementById('emp-name').textContent = topEmperor.user;
+  document.getElementById('emp-coins').textContent = topEmperor.coins.toLocaleString();
+  document.getElementById('emp-flag').textContent = FACTIONS[topEmperor.country].flag;
+  document.getElementById('emp-avatar').src = topEmperor.avatar;
+}
+
+function showWhaleCutIn(user, fac) {
+  const overlay = document.getElementById('whale-overlay');
+  document.getElementById('whale-avatar').src = `https://api.dicebear.com/7.x/bottts/svg?seed=${user}`;
+  document.getElementById('whale-user').textContent = `${fac.flag} ${user}`;
+  overlay.classList.remove('hidden');
+  setTimeout(() => overlay.classList.add('hidden'), 4100);
+}
+
+function addKillFeed(html) {
+  const feed = document.getElementById('kill-feed');
+  const div = document.createElement('div');
+  div.className = 'bg-slate-950/85 border-l-2 border-cyan-400 px-2 py-0.5 rounded text-slate-200 truncate';
+  div.innerHTML = html;
+  feed.prepend(div);
+  while (feed.children.length > 4) feed.lastChild.remove();
+}
+
+function triggerSOS() {
+  const cit = citadels[selectedFaction];
+  cit.hp = Math.min(cit.hp, 650);
+  checkSOSState();
+}
+
+function triggerAllOutWar() {
+  ['US', 'UK', 'BR', 'JP'].forEach(f => {
+    triggerSpawn(1, f);
+    triggerSpawn(2, f);
+  });
+}
+
+function checkSOSState() {
+  const viewport = document.getElementById('tiktok-viewport');
+  const banner = document.getElementById('sos-banner');
+  const text = document.getElementById('sos-text');
+
+  let endangered = null;
+  for (const k in citadels) {
+    if (citadels[k].hp > 0 && citadels[k].hp < citadels[k].maxHp * 0.25) {
+      endangered = citadels[k];
+      break;
+    }
+  }
+
+  if (endangered) {
+    viewport.classList.add('sos-active');
+    banner.classList.remove('hidden');
+    const pct = Math.ceil((endangered.hp / endangered.maxHp) * 100);
+    text.textContent = `🚨 ${endangered.fac.flag} ${endangered.fac.name} CRITICAL (${pct}% HP)! SEND 🍩 DOUGHNUT TO HEAL! 🚨`;
+  } else {
+    viewport.classList.remove('sos-active');
+    banner.classList.add('hidden');
+  }
+}
+
+// ============================================================================
+// 8. MAIN 60FPS GAME LOOP & RENDER PIPELINE
+// ============================================================================
+function gameLoop() {
+  requestAnimationFrame(gameLoop);
+
+  if (hitStopFrames > 0) {
+    hitStopFrames--;
+    return;
+  }
+
+  frameCount++;
+
+  // Auto-Simulate Live Viewers if enabled
+  if (document.getElementById('auto-bot').checked && frameCount % 32 === 0 && units.length < 70) {
+    const keys = ['US', 'UK', 'BR', 'JP'];
+    const rFac = keys[Math.floor(Math.random() * keys.length)];
+    const roll = Math.random();
+    if (roll < 0.62) triggerSpawn(0, rFac);
+    else if (roll < 0.86) triggerSpawn(1, rFac);
+    else if (roll < 0.97) triggerSpawn(2, rFac);
+    else triggerSpawn(3, rFac);
+  }
+
+  ctx.save();
+  if (screenShake > 0) {
+    ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+    screenShake *= 0.85;
+    if (screenShake < 0.5) screenShake = 0;
+  }
+
+  ctx.clearRect(0, 0, W, H);
+  drawArenaBackground(ctx);
+  updateCenterCore();
+
+  // Draw Brass Shell Casings on Floor
+  for (let i = shellCasings.length - 1; i >= 0; i--) {
+    const sc = shellCasings[i];
+    sc.x += sc.vx; sc.y += sc.vy;
+    sc.vx *= 0.88; sc.vy *= 0.88;
+    sc.rot += sc.vRot; sc.vRot *= 0.9;
+    sc.life--;
+    if (sc.life <= 0) { shellCasings.splice(i, 1); continue; }
+    ctx.save();
+    ctx.translate(sc.x, sc.y);
+    ctx.rotate(sc.rot);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(-3, -1.5, 6, 3);
+    ctx.restore();
+  }
+
+  // Draw Shattered Armor Debris & Mechanical Gears
+  for (let i = debrisList.length - 1; i >= 0; i--) {
+    const d = debrisList[i];
+    d.x += d.vx; d.y += d.vy;
+    d.vx *= 0.9; d.vy *= 0.9;
+    d.rot += d.vRot;
+    d.life--;
+    if (d.life <= 0) { debrisList.splice(i, 1); continue; }
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.rotate(d.rot);
+    ctx.globalAlpha = Math.min(1, d.life / 30);
+    ctx.fillStyle = d.color;
+    if (d.shape === 'gear') {
+      drawPolygon(ctx, 0, 0, d.size, 6);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-d.size / 2, -d.size / 2, d.size, d.size * 0.7);
+    }
+    ctx.restore();
+  }
+
+  // Update & Draw 4 Cyber Citadels
+  let aliveCitadels = [];
+  for (const k in citadels) {
+    citadels[k].update();
+    citadels[k].draw(ctx);
+    if (citadels[k].hp > 0) aliveCitadels.push(citadels[k]);
+  }
+
+  // Check Round Victory Reset
+  if (aliveCitadels.length === 1) {
+    const winner = aliveCitadels[0].fac;
+    winner.wins++;
+    document.getElementById('win-' + winner.id).textContent = winner.wins;
+    addKillFeed(`🏆 <b>${winner.flag} ${winner.name} CONQUERED THE ARENA!</b> New Round Starting...`);
+    for (const k in citadels) citadels[k].hp = citadels[k].maxHp;
+    units = [];
+    checkSOSState();
+  }
+
+  // Update & Draw Units
+  for (const u of units) u.update();
+  handleCollisions();
+  for (const u of units) u.draw(ctx);
+
+  // Draw Projectiles
+  for (const p of projectiles) {
+    ctx.save();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = p.type === 'railgun' ? 3.5 : 2;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x - p.vx * 2.2, p.y - p.vy * 2.2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Draw Expanding Shockwaves
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    const sw = shockwaves[i];
+    sw.r += (sw.maxR - sw.r) * 0.18;
+    sw.alpha -= 0.045;
+    if (sw.alpha <= 0) { shockwaves.splice(i, 1); continue; }
+    ctx.save();
+    ctx.strokeStyle = sw.color;
+    ctx.globalAlpha = sw.alpha;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Draw Orbital Nuke Laser Beams
+  for (let i = orbitalBeams.length - 1; i >= 0; i--) {
+    const b = orbitalBeams[i];
+    b.life--;
+    if (b.life <= 0) { orbitalBeams.splice(i, 1); continue; }
+    ctx.save();
+    const w = (b.life / 40) * 52;
+    const grad = ctx.createLinearGradient(b.x - w, 0, b.x + w, 0);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(0.5, '#ffffff');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fillRect(b.x - w, 0, w * 2, b.y);
+    ctx.restore();
+  }
+
+  // Draw Sparks, Smoke & Dragon Plasma Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const pt = particles[i];
+    pt.x += pt.vx; pt.y += pt.vy;
+    pt.life--;
+    if (pt.life <= 0) { particles.splice(i, 1); continue; }
+
+    // Dragon Plasma damages enemy units on contact
+    if (pt.type === 'plasma' && frameCount % 2 === 0) {
+      for (const u of units) {
+        if (Math.hypot(u.x - pt.x, u.y - pt.y) < u.size + pt.size) {
+          u.hp -= 2.5;
+        }
+      }
+    }
+
+    ctx.save();
+    ctx.globalAlpha = pt.life / pt.maxLife;
+    ctx.fillStyle = pt.color;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Draw Floating Critical Damage Numbers
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.y -= 1.1;
+    ft.life--;
+    if (ft.life <= 0) { floatingTexts.splice(i, 1); continue; }
+    ctx.save();
+    ctx.font = `900 ${ft.size}px Orbitron`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = ft.color;
+    ctx.shadowColor = '#000000';
+    ctx.shadowBlur = 4;
+    ctx.fillText(ft.text, ft.x, ft.y);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// ============================================================================
+// 9. WEBSOCKET BRIDGE FOR NODE.JS (TIKTOK-LIVE-CONNECTOR)
+// ============================================================================
+function connectTikTokWebSocket() {
+  try {
+    const ws = new WebSocket('ws://localhost:8080');
+    ws.onopen = () => {
+      const el = document.getElementById('ws-status');
+      el.textContent = 'Connected (Live)';
+      el.className = 'text-emerald-400 font-bold';
+    };
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      // Expected JSON: { country: 'US'|'UK'|'BR'|'JP', tier: 0|1|2|3|4, user: 'Username' }
+      if (data.country && FACTIONS[data.country]) {
+        triggerSpawn(data.tier || 0, data.country, data.user || 'TikTokViewer');
+      }
+    };
+    ws.onclose = () => {
+      setTimeout(connectTikTokWebSocket, 5000);
+    };
+  } catch (e) {}
+}
+
+// Seed Initial Units & Start Loop
+['US', 'UK', 'BR', 'JP'].forEach(f => {
+  triggerSpawn(0, f);
+  triggerSpawn(1, f);
+});
+connectTikTokWebSocket();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
