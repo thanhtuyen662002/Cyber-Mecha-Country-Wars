@@ -60,24 +60,34 @@ export function rock(ctx: C, x: number, y: number, r: number, base: string, ligh
 }
 
 export function sandbags(ctx: C, x: number, y: number, len: number, rot: number, color = '#8a7a58') {
+  // modular armoured barrier: chamfered blocks with a lit top face, dark seams and a hazard notch
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(rot);
-  const n = Math.max(3, Math.round(len / 12));
-  for (let row = 0; row < 2; row++)
-    for (let i = 0; i < n; i++) {
-      const bx = -len / 2 + i * 12 + (row ? 6 : 0), by = row * 8 - 4;
-      shadow(ctx, () => (ctx.beginPath(), ctx.ellipse(bx, by, 6.5, 4.5, 0, 0, 6.28), ctx.fill()), 2, 3, 0.4);
-      ctx.fillStyle = color;
+  const n = Math.max(2, Math.round(len / 22)), bw = len / n;
+  for (let i = 0; i < n; i++) {
+    const bx = -len / 2 + i * bw + 1;
+    const block = () => {
       ctx.beginPath();
-      ctx.ellipse(bx, by, 6.5, 4.5, 0, 0, 6.28);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
-      ctx.fillRect(bx - 4, by - 3, 5, 1.5);
+      ctx.moveTo(bx + 3, -6); ctx.lineTo(bx + bw - 5, -6); ctx.lineTo(bx + bw - 2, -3); ctx.lineTo(bx + bw - 2, 3);
+      ctx.lineTo(bx + bw - 5, 6); ctx.lineTo(bx + 3, 6); ctx.lineTo(bx, 3); ctx.lineTo(bx, -3); ctx.closePath();
+    };
+    shadow(ctx, () => (block(), ctx.fill()), 3, 4, 0.45);
+    ctx.fillStyle = color;
+    block();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,12,16,0.85)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(bx + 3, -4.6, bw - 8, 3.2); // lit top face
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(bx + 3, 2, bw - 8, 3);
+    if (i % 2 === 0) {
+      ctx.fillStyle = 'rgba(255,200,40,0.75)';
+      for (let k = 0; k < 2; k++) ctx.fillRect(bx + bw / 2 - 4 + k * 5, -1.2, 2.4, 2.4);
     }
+  }
   ctx.restore();
 }
 
@@ -496,7 +506,8 @@ export function battlefield(ctx: C, rim: string, bagColor: string) {
     crater(ctx, x, y, rand(18, 42), rim);
   }
   // defensive lines in front of each fortress slot, facing the map centre
-  for (const t of RESERVED) {
+  // only the four corner fortress slots (always in use) get a defensive line: keeps the field readable
+  for (const t of RESERVED.filter((r) => r.r >= 90).slice(0, 4)) {
     const a = Math.atan2(H / 2 - t.y, W / 2 - t.x);
     const fx = Math.cos(a), fy = Math.sin(a), sx = -fy, sy = fx;
     const d = t.r + 40;
@@ -507,7 +518,7 @@ export function battlefield(ctx: C, rim: string, bagColor: string) {
     barbedWire(ctx, t.x + fx * (d + 30), t.y + fy * (d + 30), 90, a + Math.PI / 2);
     for (let i = 0; i < 2; i++) crate(ctx, t.x + fx * d + sx * rand(-120, 120), t.y + fy * d + sy * rand(-120, 120), rand(12, 16));
   }
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     const [x, y] = spot(60, true);
     sandbags(ctx, x, y, rand(50, 90), rand(0, 3.14), bagColor);
   }
