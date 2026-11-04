@@ -1,7 +1,7 @@
 // On-stream HUD (Pixi, so it is captured by TikTok LIVE Studio / OBS with the game).
 // Text is refreshed at most 4x per second (PLAN.md); banners animate every frame.
 import { Container, Graphics, Sprite, Text, type TextStyleOptions } from 'pixi.js';
-import { H, TERRAINS, W, WEATHERS, type WeatherKey, fmt, lerp } from '../core/config';
+import { H, TERRAINS, TERRAIN_WEATHERS, W, WEATHERS, WEATHER_CMD, type WeatherKey, fmt, lerp } from '../core/config';
 import { COUNTRY_BY_CODE } from '../core/countries';
 import { COUNTER, EVENT_UNITS, TIER_LABEL, TIER_MIN, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
 import type { FlagAtlas } from '../draw/flags';
@@ -990,7 +990,7 @@ export class Hud {
       tipCol = 0xffd34d;
     } else if (game.voteOpen) {
       const top = [...game.votes].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${WEATHERS.find((x) => x.key === k)!.icon} ${v}`).join('  ');
-      tip = `VOTE THE NEXT WEATHER: type !rain !storm !snow !fog !wind !sand !heat !emp${top ? `   ·   ${top}` : ''}`;
+      tip = `VOTE THE NEXT WEATHER: type ${TERRAIN_WEATHERS[game.terrain].filter((k) => k !== game.weather).map((k) => WEATHER_CMD[k]).join(' ')}${top ? `   ·   ${top}` : ''}`;
       tipCol = 0x9fdcff;
     } else {
       const bombed = w.slotted.filter((f) => f.hurtBy.air > 400).sort((a, b) => b.hurtBy.air - a.hurtBy.air)[0];
@@ -1027,7 +1027,7 @@ export class Hud {
         `Hold the ENERGY CORE · REPAIR DEPOT · FACTORY for bonuses`,
         `WAR CHEST: every coin fills your country's bar → ${CHEST_GOALS.map((g) => `${fmt(g.coins)} ${g.label}`).join(' · ')}`,
         `Losing badly? The UNDERDOG gets a shield and x1.5 points: rally your country!`,
-        `BOSS RAID at 2:30 · FINAL MINUTE = DOUBLE POINTS · vote the weather with !rain !storm !fog`,
+        `BOSS RAID at 2:30 · FINAL MINUTE = DOUBLE POINTS · vote the next weather in chat`,
       ];
       this.ticker.text = lines[this.tickerIdx++ % lines.length];
       this.ticker.scale.set(Math.min(1, (W - 80) / Math.max(1, this.ticker.width / this.ticker.scale.x)));

@@ -1,6 +1,6 @@
 // Game rules on top of the World: what each TikTok action does, rounds, weather schedule,
 // CPU reinforcements, supply-drop triggers, season stats and the 30-second save.
-import { TERRAINS, type TerrainKey, WEATHERS, type WeatherKey, pick, rand } from '../core/config';
+import { TERRAINS, TERRAIN_WEATHERS, type TerrainKey, WEATHERS, type WeatherKey, pick, rand } from '../core/config';
 import { COUNTRY_BY_CODE, parseCountry } from '../core/countries';
 import { TIER_UNITS, UNITS, UNIT_CMDS, type UnitKey, tierOf } from '../core/units';
 import type { EventQueue, GameEvent } from '../net/events';
@@ -115,6 +115,7 @@ export class Game {
         this.round.terrainIdx = saved.round.terrainIdx;
         this.round.timeLeft = Math.max(30, saved.round.timeLeft);
         this.weather = saved.round.weather ?? 'clear';
+        this.fitWeather();
         this.onTerrain(this.terrain);
         this.world.terrain = this.terrain;
         this.world.restore(saved.world);
@@ -129,6 +130,7 @@ export class Game {
     this.onTerrain(this.terrain);
     this.world.newRound(this.terrain);
     this.seed();
+    this.fitWeather();
     this.onWeather(this.weather);
     this.onRoundStart(this.round.n);
   }
@@ -162,7 +164,7 @@ export class Game {
         if (code) return this.join(p, code);
         const cmd = e.text.trim().toLowerCase().split(/\s+/)[0];
         const wv = WEATHER_VOTES[cmd];
-        if (wv && this.voteOpen && wv !== this.weather && !this.voters.has(p.uid)) {
+        if (wv && this.voteOpen && wv !== this.weather && TERRAIN_WEATHERS[this.terrain].includes(wv) && !this.voters.has(p.uid)) {
           this.voters.add(p.uid);
           this.votes.set(wv, (this.votes.get(wv) ?? 0) + 1 + Math.min(4, rankOf(p.coins)));
           return;
@@ -329,7 +331,7 @@ export class Game {
     }
     if (!this.nextWeather && this.weatherIn <= 15) {
       this.voteOpen = false;
-      const opts = WEATHERS.map((x) => x.key).filter((k) => k !== this.weather);
+      const opts = TERRAIN_WEATHERS[this.terrain].filter((k) => k !== this.weather);
       const top = [...this.votes].sort((a, b) => b[1] - a[1])[0];
       if (top) {
         this.nextWeather = top[0];
@@ -498,8 +500,18 @@ export class Game {
     this.onTerrain(this.terrain);
     this.world.newRound(this.terrain);
     this.seed();
+    if (this.fitWeather()) this.onWeather(this.weather);
     this.onRoundStart(this.round.n);
     void this.persist();
+  }
+
+  /** New battlefield: drop weather that cannot happen there (snow in the desert...). Returns true if it changed. */
+  private fitWeather() {
+    const ok = TERRAIN_WEATHERS[this.terrain];
+    if (this.nextWeather && !ok.includes(this.nextWeather)) this.nextWeather = null;
+    if (ok.includes(this.weather)) return false;
+    this.weather = 'clear';
+    return true;
   }
 
   emperor() {

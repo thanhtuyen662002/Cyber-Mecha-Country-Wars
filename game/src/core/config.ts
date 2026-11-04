@@ -32,6 +32,20 @@ export const WEATHERS: { key: WeatherKey; name: string; icon: string; hint: stri
   { key: 'emstorm', name: 'EM Storm', icon: '🌀', hint: 'Drones fall, energy weapons supercharged', fx: 'Drones fry · energy weapons +30% · radar -25%' },
 ];
 
+/** Weather that makes sense on each battlefield (no snow in the desert, no sandstorm at sea). */
+export const TERRAIN_WEATHERS: Record<TerrainKey, WeatherKey[]> = {
+  jungle: ['clear', 'rain', 'storm', 'fog', 'wind', 'heatwave', 'emstorm'],
+  desert: ['clear', 'sandstorm', 'heatwave', 'wind', 'emstorm'],
+  ice: ['clear', 'blizzard', 'fog', 'wind', 'emstorm'],
+  volcano: ['clear', 'heatwave', 'storm', 'wind', 'emstorm'],
+  swamp: ['clear', 'rain', 'storm', 'fog', 'heatwave', 'emstorm'],
+  sea: ['clear', 'rain', 'storm', 'fog', 'wind', 'emstorm'],
+  city: ['clear', 'rain', 'storm', 'fog', 'wind', 'blizzard', 'heatwave', 'emstorm'],
+  industrial: ['clear', 'rain', 'storm', 'fog', 'wind', 'blizzard', 'heatwave', 'emstorm'],
+};
+/** Chat command that votes for each weather (shown in the HUD). */
+export const WEATHER_CMD: Record<WeatherKey, string> = { clear: '!clear', rain: '!rain', storm: '!storm', blizzard: '!snow', fog: '!fog', wind: '!wind', sandstorm: '!sand', heatwave: '!heat', emstorm: '!emp' };
+
 /** Spots the terrain painter keeps clear of props (fortress slots). Set before building terrain. */
 export const RESERVED: { x: number; y: number; r: number }[] = [];
 
