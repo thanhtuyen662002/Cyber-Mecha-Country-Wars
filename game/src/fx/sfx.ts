@@ -66,11 +66,22 @@ export class Sfx {
   intensity = 0.3;
   /** final minute: ticking clock, faster, a semitone higher */
   urgent = false;
+  // Recorded audio (optional): public/audio/manifest.json lists CC0 files per sound kind and
+  // music tracks. When present they replace/augment the synth; without them the synth plays alone.
+  private samples: Partial<Record<Kind, { bufs: AudioBuffer[]; gain: number }>> = {};
+  private tracks: { calm: AudioBuffer[]; battle: AudioBuffer[] } = { calm: [], battle: [] };
+  private trackGains: { calm: GainNode; battle: GainNode } | null = null;
+  private trackSrc: { calm: AudioBufferSourceNode | null; battle: AudioBufferSourceNode | null } = { calm: null, battle: null };
+  private loaded = false;
 
   enable(on: boolean) {
     this.enabled = on;
     if (on && !this.ctx) this.build();
     if (on) this.ctx?.resume();
+    if (on && !this.loaded) {
+      this.loaded = true;
+      void this.loadSamples();
+    }
     this.setMusic(on);
     if (this.ctx) this.master.gain.setTargetAtTime(on ? 0.85 : 0, this.ctx.currentTime, 0.05);
     if (on) this.setAmbience(this.wantAmb, true);
@@ -172,6 +183,53 @@ export class Sfx {
     this.musicVerb.connect(hall).connect(hallOut).connect(this.musicDuck);
   }
 
+  private async loadSamples() {
+    const c = this.ctx!;
+    let m: { sfx?: Record<string, { files: string[]; gain?: number }>; music?: { calm?: string[]; battle?: string[] } };
+    try {
+      const r = await fetch('audio/manifest.json', { cache: 'no-cache' });
+      if (!r.ok) return;
+      m = await r.json();
+    } catch {
+      return; // no recorded audio shipped: synth only
+    }
+    const load = async (f: string) => {
+      try {
+        const r = await fetch(`audio/${f}`);
+        return r.ok ? await c.decodeAudioData(await r.arrayBuffer()) : null;
+      } catch {
+        return null;
+      }
+    };
+    for (const [kind, v] of Object.entries(m.sfx ?? {})) {
+      const bufs = (await Promise.all(v.files.map(load))).filter((b): b is AudioBuffer => !!b);
+      if (bufs.length) this.samples[kind as Kind] = { bufs, gain: v.gain ?? 1 };
+    }
+    for (const key of ['calm', 'battle'] as const) this.tracks[key] = (await Promise.all((m.music?.[key] ?? []).map(load))).filter((b): b is AudioBuffer => !!b);
+    if (this.tracks.calm.length || this.tracks.battle.length) this.startTracks();
+    console.info(`[sfx] recorded audio: ${Object.keys(this.samples).length} kinds, ${this.tracks.calm.length + this.tracks.battle.length} music tracks`);
+  }
+
+  /** Recorded music: a calm bed and a battle track cross-faded by intensity; each picks a new file when it ends. */
+  private startTracks() {
+    const c = this.ctx!;
+    this.trackGains = { calm: c.createGain(), battle: c.createGain() };
+    for (const key of ['calm', 'battle'] as const) {
+      this.trackGains[key].gain.value = 0;
+      this.trackGains[key].connect(this.musicGain);
+      const next = () => {
+        const list = this.tracks[key].length ? this.tracks[key] : this.tracks.calm.length ? this.tracks.calm : this.tracks.battle;
+        const src = c.createBufferSource();
+        src.buffer = list[(Math.random() * list.length) | 0];
+        src.connect(this.trackGains![key]);
+        src.onended = () => this.musicOn && this.trackSrc[key] === src && next();
+        src.start();
+        this.trackSrc[key] = src;
+      };
+      next();
+    }
+  }
+
   private impulse(sec: number, decay: number) {
     const c = this.ctx!;
     const n = Math.floor(c.sampleRate * sec);
@@ -220,6 +278,14 @@ export class Sfx {
 
   private schedule() {
     const c = this.ctx!;
+    if (this.trackGains) {
+      const I = this.intensity, t = c.currentTime;
+      this.trackGains.calm.gain.setTargetAtTime(Math.max(0, 1 - I * 1.4) * 1.6, t, 1.5);
+      this.trackGains.battle.gain.setTargetAtTime(Math.min(1, I * 1.4) * 1.6, t, 1.5);
+      for (const k of ['calm', 'battle'] as const) if (this.trackSrc[k]) this.trackSrc[k]!.playbackRate.value = this.urgent ? 1.04 : 1;
+      this.nextTime = t;
+      return;
+    }
     while (this.nextTime < c.currentTime + 0.2) {
       const bpm = this.urgent ? 112 : 100;
       const d = 60 / bpm / 4;
@@ -576,6 +642,28 @@ export class Sfx {
       }
     };
     const r = () => 0.92 + Math.random() * 0.16;
+
+    // recorded sample: plays alone for small sounds; heavy sounds keep the synth sub/punch underneath
+    const smp = this.samples[kind];
+    if (smp) {
+      const src = c.createBufferSource();
+      src.buffer = smp.bufs[(Math.random() * smp.bufs.length) | 0];
+      src.playbackRate.value = 0.94 + Math.random() * 0.12;
+      const g = c.createGain();
+      g.gain.value = smp.gain;
+      src.connect(g).connect(out);
+      src.start(now);
+      end = Math.max(end, src.buffer.duration);
+      const heavy = kind === 'boom' || kind === 'bigboom' || kind === 'cannon' || kind === 'thunder';
+      if (!heavy) {
+        wet(kind === 'sniper' ? 0.6 : 0.25, kind === 'gun' || kind === 'sniper' || kind === 'flak' ? 0.4 : 0.2);
+        done();
+        return;
+      }
+      g.gain.value = smp.gain * 1.6;
+      out.gain.value *= 0.6;
+      drv.gain.value *= 0.6;
+    }
 
     switch (kind) {
       case 'gun': // rifle: supersonic crack + muzzle body + ground slap, answered by the hills

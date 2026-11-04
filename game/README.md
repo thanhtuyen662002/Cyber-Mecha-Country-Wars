@@ -17,6 +17,8 @@ npm run dev            # mở http://localhost:5173
 
 ## Đưa lên TikTok LIVE
 
+**Cách nhanh nhất trên Windows:** bấm đúp `start-live.bat` ở thư mục gốc repo. Lần đầu nó tự cài và build, sau đó mở game ở `http://localhost:5173` và (nếu bạn gõ tên TikTok) chạy luôn bridge. Các bước chi tiết bên dưới.
+
 1. Cài và mở **TikFinity** (bản miễn phí), đăng nhập TikTok, bấm kết nối vào phiên live.
 2. Chạy game: `npm run build` rồi `npx vite preview --port 5173` (hoặc `npm run dev`).
 3. Trong **TikTok LIVE Studio** (hoặc OBS): thêm nguồn **Browser / Link**, URL `http://localhost:5173/?clean&sound`, kích thước **1080 × 1920**.
@@ -67,6 +69,8 @@ Ranh giới mức xu, nước khởi đầu, thời lượng vòng… nằm tron
 - **Sau mỗi trận:** trang 2 của màn chiến thắng hiện bảng mùa (thắng/xu theo tháng) và Hall of Legends (top người ủng hộ mọi thời đại, cấp được giữ mãi).
 
 ## Âm thanh, nhạc và vật lý môi trường
+
+- **Âm thanh thu âm thật (tùy chọn):** bỏ file CC0 vào `public/audio/` và khai báo trong `public/audio/manifest.json` (xem `public/audio/README.md`). Có file thì game dùng file thật (vụ nổ lớn vẫn giữ lớp trầm tổng hợp bên dưới), nhạc thu sẵn chuyển giữa bản êm và bản chiến theo độ căng của trận. Không có file thì dùng âm tổng hợp như dưới.
 
 - **Âm thanh đặt trong chiến trường:** tiếng bên trái màn hình nghe bên tai trái, tiếng ngoài màn hình nhỏ và đục hơn. Mỗi vụ nổ có tiếng nổ chát, cú đấm trầm vào ngực, quả cầu lửa, tiếng ù kéo dài, mảnh kim loại rơi lách cách và tiếng vọng từ hai bên đồi. Nổ cực lớn (Titan chết, pháo đài nổ) làm cả âm thanh đục đi một nhịp kèm tiếng ù tai.
 - **Âm thanh mới:** pháo rơi rít trước khi chạm đất, đạn bật khỏi giáp, đạn găm thép, đạn pháo rơi xuống nước, lửa gặp mưa xì hơi. Nền chiến trường xa (pháo và súng máy vọng lại) to dần theo độ căng của trận.
