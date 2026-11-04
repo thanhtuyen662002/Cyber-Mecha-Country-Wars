@@ -85,10 +85,12 @@ export function buildVisual(key: UnitKey, color: number, art: UnitArt, fx: FxTex
     case 'drone': {
       const body = add(art.drone);
       const rotors: Sprite[] = [];
-      for (const [x, y] of [[-11, -11], [11, -11], [-11, 11], [11, 11]]) {
+      {
+        // rear pusher prop
         const r = new Sprite(art.droneRotor.base);
         r.anchor.set(0.5);
-        r.position.set(x, y);
+        r.position.set(-16.5, 0);
+        r.scale.set(0.6);
         body.c.addChild(r);
         rotors.push(r);
       }
@@ -406,7 +408,7 @@ export function buildVisual(key: UnitKey, color: number, art: UnitArt, fx: FxTex
       tr.anchor.set(0.5);
       hullC.addChild(tr);
       add(art.mobileHull, hullC);
-      const mounts: [number, number, PartTex, number][] = [[38, 0, art.mbtTurret, 0.75], [-6, -16, art.tankTurret, 0.72], [-6, 16, art.tankTurret, 0.72]];
+      const mounts: [number, number, PartTex, number][] = [[36, 0, art.mbtTurret, 0.92], [-8, -17, art.tankTurret, 0.9], [-8, 17, art.tankTurret, 0.9]];
       const turrets = mounts.map(([x, y, pt, sc]) => {
         const t = add(pt);
         t.c.scale.set(sc);
@@ -537,8 +539,8 @@ export function buildVisual(key: UnitKey, color: number, art: UnitArt, fx: FxTex
         wings.forEach((w, i) => {
           w.c.position.copyFrom(w1.position);
           w.c.rotation = w1.rotation;
-          w.c.scale.x = 1;
-          w.c.scale.y = (i ? -1 : 1) * (0.8 + wave * 0.25);
+          w.c.scale.x = 1.2;
+          w.c.scale.y = (i ? -1 : 1) * (1.1 + wave * 0.25);
         });
         head.glow.alpha = 0.8 + st.flash;
         sh.rotation = st.angle;
