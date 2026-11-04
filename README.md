@@ -2,11 +2,23 @@
 
 Game tương tác cho TikTok LIVE (kết nối qua TikFinity): các quốc gia trên thế giới đánh nhau bằng nhiều loại cỗ máy chiến đấu, người xem chat, thả tim và tặng quà để gọi quân. Mục tiêu: đồ họa đẹp, chạy nhẹ, treo live 24/7 ổn định.
 
-- Kế hoạch phát triển tổng: [docs/PLAN.md](docs/PLAN.md)
-- Công nghệ dự kiến: PixiJS v8 + TypeScript + Vite, chạy dạng browser source trong TikTok LIVE Studio.
+## Hai nhánh phát triển song song
 
-- Thử nghiệm đồ họa (code vs ảnh AI): [art-lab/](art-lab/README.md), prompt tạo ảnh: [docs/ART_PROMPTS.md](docs/ART_PROMPTS.md)
+| Nhánh | Phụ trách | Nội dung |
+| --- | --- | --- |
+| [`track/2d`](https://github.com/thanhtuyen662002/Cyber-Mecha-Country-Wars/tree/track/2d) | Oscar | Bản 2D PixiJS, đã chơi được (`game/`, `bridge/`, `art-lab/`) |
+| [`track/3d`](https://github.com/thanhtuyen662002/Cyber-Mecha-Country-Wars/tree/track/3d) | Bạn của Oscar | Bản 3D, bắt đầu từ tài liệu |
 
-- **Game:** [game/](game/README.md) (chạy, đưa lên TikTok LIVE, cách chơi), bridge dự phòng: [bridge/](bridge/index.mjs)
+Hai bản dùng chung luật chơi và nguồn sự kiện, cuối cùng chọn bản đẹp nhất. Nhánh `main` chứa tài liệu chung.
 
-Trạng thái: bản chơi được đầu tiên (M0–M2 + phần lớn M5, M6), đồ họa vẽ bằng code từ art-lab.
+## Tài liệu
+
+- [docs/README.md](docs/README.md): mục lục toàn bộ tài liệu
+- [docs/PLAN.md](docs/PLAN.md): kế hoạch phát triển tổng
+- [docs/TRACKS.md](docs/TRACKS.md): cách làm song song 2D/3D, những gì cả 2 bản phải giống nhau, cách chấm chọn bản
+
+## Trên nhánh này (track/2d)
+
+- **Game 2D:** [game/](game/README.md): cách chạy, đưa lên TikTok LIVE, cách chơi, tham số URL. Trạng thái: bản chơi được đầu tiên (M0–M2 + phần lớn M5, M6), đồ họa vẽ bằng code.
+- **Nguồn sự kiện dự phòng:** [bridge/](bridge/index.mjs) (TikTok-Live-Connector → `ws://localhost:21214`).
+- **Thử nghiệm đồ họa:** [art-lab/](art-lab/README.md).

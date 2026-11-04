@@ -308,6 +308,10 @@ Thời gian là ước lượng, tính từ ngày Oscar nói bắt đầu. Phạ
 
 Từ cuối M2 (khoảng tuần 5) đã có bản chơi được với hình tạm, nên Oscar có thể live thử sớm để xem người xem phản ứng. Qua Cổng 2 mới nên treo live qua đêm.
 
+**Tiến độ (03/11/2026):** bản chơi được v1 (2D, PixiJS) nằm trong thư mục `game/` + `bridge/` trên nhánh `track/2d`. Đã có M1–M2 (chọn nước qua chat, đủ 24 đơn vị và khắc chế, cứ điểm, thời tiết, vòng 15 phút), phần lớn M5 (camera đạo diễn, cut-in theo bậc, tên trên đơn vị) và M6 (vòng lặp 30 Hz, trần/pool, lưu IndexedDB, watchdog, chất lượng tự động). Khác kế hoạch: bản đồ tạm là 1 màn hình với 12 vị trí pháo đài (chưa có bản đồ lục giác nở ra, chưa có tiền đồn). Còn thiếu: lưới phản ứng nguyên tố, bình chọn thời tiết, Boss Raid, bảng mùa giải, skin theo cấp bậc; âm thanh vẫn là âm tổng hợp. M0 còn chờ kiểm tra trên máy Oscar: WebSocket TikFinity bản miễn phí và giá xu quà thật.
+
+**Phát triển song song 2D và 3D (04/11/2026):** từ nay có 2 nhánh làm song song, 2D (Oscar, PixiJS) và 3D (bạn của Oscar), để cuối cùng chọn bản đẹp nhất. Luật chơi, giao thức sự kiện và tiêu chí chấm chung nằm trong [TRACKS.md](TRACKS.md).
+
 ## Rủi ro và câu hỏi cho Oscar
 
 **Rủi ro:**

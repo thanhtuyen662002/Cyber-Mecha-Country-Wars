@@ -1,5 +1,7 @@
 # Prompt tạo ảnh cho Art Lab (phương án B: đồ họa bằng ảnh)
 
+> **Lưu trữ.** Ngày 03/11/2026 Oscar chốt nhánh 2D vẽ 100% bằng code, không dùng ảnh AI. File này giữ lại để tham khảo phong cách, góc nhìn và bảng màu từng đơn vị; nhánh 3D có thể dùng các mô tả ở đây làm gợi ý concept khi làm model. `art-lab/` nằm trên nhánh `track/2d`.
+
 Cập nhật: 03/11/2026 · Dùng cho demo `art-lab/` (xem [art-lab/README.md](../art-lab/README.md))
 
 Phương án A (vẽ bằng code) đã có sẵn trong demo. Phương án B cần ảnh do Oscar tạo bằng Midjourney hoặc Leonardo theo các prompt dưới đây. Tạo xong, bỏ file PNG vào `art-lab/public/art/` đúng tên, tải lại trang là demo tự dùng ảnh. Thiếu file nào thì demo hiện khung hồng "MISSING IMAGE" ở đúng chỗ đó.
