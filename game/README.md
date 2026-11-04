@@ -77,6 +77,7 @@ Ranh giới mức xu, nước khởi đầu, thời lượng vòng… nằm tron
 - **Thời tiết đổi màu âm thanh:** mưa, tuyết, sương mù, bão cát làm tiếng nổ đục và xa hơn.
 - **Nhạc nền mới** (tự sáng tác, không bản quyền) kiểu nhạc phim chiến tranh, Rê thứ: dàn dây, đoạn dây nảy liên tục, trống taiko, kèn đồng trầm, giai điệu kèn hùng tráng, hợp xướng và tiếng "braam" lớn. Các lớp nhạc vào dần theo số quân và quân lớn trên sân. Phút cuối: nhịp nhanh hơn, lên nửa cung, thêm tiếng đồng hồ tích tắc.
 - **Vật lý theo mặt đất** (`src/sim/surface.ts`): tuyết bung trắng và để lại vệt xích sâu, cát bốc cột bụi lâu tan, bùn văng và bám vết, nước dựng cột nước và gợn sóng quanh xe, bê tông tung bụi xám và tia lửa, núi lửa tung tro và than hồng. Xe trên băng trượt ngang để lại vệt trượt. Trời mưa: bánh xe té nước, lửa bốc hơi nước trắng. Nắng nóng: lửa to hơn. Khói và bụi bay theo gió.
+- **Thời tiết hợp với địa hình** (`TERRAIN_WEATHERS` trong `src/core/config.ts`): sa mạc chỉ có nắng, bão cát, nắng nóng, gió, bão điện từ; băng tuyết có bão tuyết nhưng không mưa hay nắng nóng; biển không có bão cát… Áp dụng cho cả lịch đổi thời tiết và bình chọn trong chat (dòng gợi ý chỉ hiện lệnh hợp lệ). Sang địa hình mới mà thời tiết không hợp thì trời quang.
 - **Thời tiết hiện rõ:** đổi thời tiết hoặc địa hình hiện banner ghi rõ tác động ("All units -25% speed · range -20%"), góc trên luôn ghi tác động hiện tại và mũi tên hướng gió. Quân đổi màu theo thời tiết (phủ sương giá khi bão tuyết, bụi khi bão cát, ướt khi mưa).
 
 ## Có gì trong bản này
