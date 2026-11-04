@@ -19,6 +19,8 @@ export class Watchdog {
   private started = performance.now();
   private reloading = false;
   reason = '';
+  /** Set by offline tools (poster export) that block the main loop on purpose. */
+  paused = false;
 
   constructor(private o: WatchdogOpts) {
     o.canvas.addEventListener('webglcontextlost', (e) => {
@@ -29,7 +31,7 @@ export class Watchdog {
     window.addEventListener('unhandledrejection', () => this.onError());
     // A timer keeps running even if rAF stops (rAF is throttled when hidden, so only act when visible).
     window.setInterval(() => {
-      if (document.visibilityState === 'visible' && performance.now() - this.lastFrame > 5000) this.reload('frame-stall');
+      if (!this.paused && document.visibilityState === 'visible' && performance.now() - this.lastFrame > 5000) this.reload('frame-stall');
     }, 1000);
   }
 

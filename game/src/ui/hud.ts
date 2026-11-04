@@ -49,7 +49,7 @@ const ease = (x: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 interface FeedLine { root: Container; bg: Graphics; flag: Sprite; text: Text; life: number }
 
 /** Approximate on-screen footprint (px) of each unit rig, used to frame portraits. */
-const FOOT: Record<UnitKey, number> = { infantry: 34, sniper: 44, at: 36, drone: 34, flamer: 34, tank: 62, aa: 62, spider: 104, heli: 120, robot: 92, bomber: 100, titan: 180, strike: 100, jeep: 52, repair: 48, mbt: 90, mlrs: 70, emp: 62, hover: 110, mobile: 150, carrier: 220, stormfort: 150, orbital: 110, dragon: 200 };
+const FOOT: Record<UnitKey, number> = { infantry: 46, sniper: 66, at: 46, drone: 38, flamer: 48, tank: 62, aa: 62, spider: 104, heli: 120, robot: 92, bomber: 100, titan: 180, strike: 100, jeep: 60, repair: 48, mbt: 90, mlrs: 70, emp: 62, hover: 110, mobile: 150, carrier: 220, stormfort: 150, orbital: 110, dragon: 200 };
 const CLASS_NAME = { inf: 'infantry', vehicle: 'vehicles', mech: 'mechs', air: 'aircraft', fort: 'fortresses' } as const;
 
 /** One-line role description shown on unit spec sheets. */
@@ -531,6 +531,33 @@ export class Hud {
       vs.position.set(cx, cy + 232);
       this.guide.addChild(name, tier, vs);
     });
+  }
+
+  /** Grid of large unit portraits (design review sheet). */
+  sheet(keys: UnitKey[], cell = 420): { root: Container; w: number; h: number; destroy: () => void } {
+    const root = new Container();
+    const cols = Math.min(3, keys.length), rows = Math.ceil(keys.length / cols);
+    const w = cols * cell, h = rows * (cell + 50);
+    const g = new Graphics().rect(0, 0, w, h).fill(0x0b111c);
+    for (let x = 0; x <= w; x += 30) g.rect(x, 0, 1, h).fill({ color: 0x38e1ff, alpha: 0.05 });
+    for (let y = 0; y <= h; y += 30) g.rect(0, y, w, 1).fill({ color: 0x38e1ff, alpha: 0.05 });
+    root.addChild(g);
+    const ps: Portrait[] = [];
+    keys.forEach((k, i) => {
+      const cx = (i % cols) * cell + cell / 2, cy = Math.floor(i / cols) * (cell + 50) + cell / 2 + 10;
+      const big = k === 'titan' || k === 'carrier' || k === 'dragon' || k === 'mobile' || k === 'stormfort';
+      const p = new Portrait(k === 'strike' ? 'bomber' : k, 0x38e1ff, (big ? 0.78 : 0.68) * cell, this.art, this.fx);
+      for (let f = 0; f < 150; f++) p.update(1 / 30);
+      const hb = p.holder.getBounds(), rb = p.root.getBounds();
+      p.root.position.set(cx - (hb.x + hb.width / 2 - rb.x - rb.width / 2), cy - (hb.y + hb.height / 2 - rb.y - rb.height / 2));
+      root.addChild(p.root);
+      ps.push(p);
+      const t = new Text({ text: UNITS[k].name.toUpperCase(), style: tt(24, 0xffffff) });
+      t.anchor.set(0.5, 0);
+      t.position.set(cx, Math.floor(i / cols) * (cell + 50) + cell + 8);
+      root.addChild(t);
+    });
+    return { root, w, h, destroy: () => (ps.forEach((p) => p.destroy()), root.destroy({ children: true })) };
   }
 
   /** A 1080x1350 spec sheet for one unit (used to export reference images). */
