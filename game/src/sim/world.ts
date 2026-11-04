@@ -4,7 +4,7 @@
 import { BitmapFont, BitmapText, Container, RenderTexture, type Renderer, Sprite, type Texture } from 'pixi.js';
 import { H, RESERVED, SIM_DT, TERRAINS, type TerrainKey, W, type WeatherKey, angDiff, clamp, lerp, pick, rand } from '../core/config';
 import { COUNTRY_BY_CODE, type CountryDef, MERC } from '../core/countries';
-import { COUNTER, UNITS, type UnitClass, type UnitDef, type UnitKey } from '../core/units';
+import { COUNTER, TIER_COLOR, UNITS, type UnitClass, type UnitDef, type UnitKey } from '../core/units';
 import { BARREL_SPOTS, LAVA_HALF, PYLONS, isWater, lavaDist } from '../core/terrainmap';
 import type { FlagAtlas } from '../draw/flags';
 import type { FxTextures } from '../draw/fxTextures';
@@ -84,6 +84,9 @@ export interface Unit extends Target {
   tagUntil: number;
   bar: Sprite | null;
   barBg: Sprite | null;
+  /** "T1".."T6" chip in the tier colour, so viewers can read a unit's price at a glance. */
+  badge: BitmapText | null;
+  badgeBg: Sprite | null;
   born: number;
   squad: number;
   kills: number;
@@ -169,6 +172,8 @@ export class World {
   private pool = new Map<UnitKey, UnitVisual[]>();
   private tagPool: BitmapText[] = [];
   private barPool: Sprite[] = [];
+  /** Unit kinds viewers summoned this round (the HUD lists the ones still missing). */
+  readonly summoned = new Set<UnitKey>();
 
   terrain: TerrainKey = 'jungle';
   weather: WeatherKey = 'clear';
@@ -357,6 +362,7 @@ export class World {
 
   /** Rebuild all forts for a new round (full HP), keeping countries that were active recently. */
   newRound(terrain: TerrainKey, keepActiveWithin = 600) {
+    this.summoned.clear();
     for (const u of [...this.units]) this.removeUnit(u);
     for (const w of this.wrecks) w.s.destroy();
     this.wrecks = [];
@@ -580,7 +586,7 @@ export class World {
     const u: Unit = {
       def, name, uid, rank, fid, x, y, px: x, py: y, vx: 0, vy: 0, radius: def.radius, hp, maxHp: hp, cls: def.cls, alive: true,
       angle: dir, aim: dir, dist: 0, moving: 0, cool: rand(0, 1), special: rand(2, 4), salvo: 0,
-      retarget: 0, target: null, goalX: W / 2, goalY: H / 2, flash: 0, vis, tag: null, tagUntil: 0, bar: null, barBg: null, born: this.time,
+      retarget: 0, target: null, goalX: W / 2, goalY: H / 2, flash: 0, vis, tag: null, tagUntil: 0, bar: null, barBg: null, badge: null, badgeBg: null, born: this.time,
       squad: 1, kills: 0, shield: 0, haste: 0, passes: 0, dropT: 0, dir, scale: 1,
     };
     (def.cls === 'air' ? this.air : this.ground).addChild(vis.root);
@@ -596,6 +602,10 @@ export class World {
       u.barBg = this.takeBar(0x000000, 0.6);
       u.bar = this.takeBar(f.color);
     }
+    if (def.tier >= 1) {
+      u.badgeBg = this.takeBar(0x02060c, 0.7);
+      u.badge = this.takeTag(`T${def.tier}`, def.tier >= 4 ? 22 : 18, TIER_COLOR[def.tier]);
+    }
     // arrival effect scales with tier ("pay-to-flex")
     this.particles.ring(x, y, 0.6 + def.tier * 0.5, f.color, 0.5);
     this.particles.flash(x, y, 0.5 + def.tier * 0.4, f.color, 0.3);
@@ -610,9 +620,10 @@ export class World {
   private removeUnit(u: Unit) {
     u.alive = false;
     this.releaseVisual(u.vis);
-    for (const t of [u.tag]) if (t) (t.visible = false), this.tags.removeChild(t), this.tagPool.length < 300 ? this.tagPool.push(t) : t.destroy();
-    for (const b of [u.bar, u.barBg]) if (b) (b.visible = false), this.tags.removeChild(b), this.barPool.length < 300 ? this.barPool.push(b) : b.destroy();
-    u.tag = u.bar = u.barBg = null;
+    for (const t of [u.tag, u.badge]) if (t) (t.visible = false), this.tags.removeChild(t), this.tagPool.length < 300 ? this.tagPool.push(t) : t.destroy();
+    for (const b of [u.bar, u.barBg, u.badgeBg]) if (b) (b.visible = false), this.tags.removeChild(b), this.barPool.length < 300 ? this.barPool.push(b) : b.destroy();
+    u.tag = u.badge = null;
+    u.bar = u.barBg = u.badgeBg = null;
     const i = this.units.indexOf(u);
     if (i >= 0) {
       this.units[i] = this.units[this.units.length - 1];
@@ -643,7 +654,7 @@ export class World {
     const u: Unit = {
       def, name, uid, rank: 0, fid: f.id, x: sx, y: sy, px: sx, py: sy, vx: Math.cos(a) * 330, vy: Math.sin(a) * 330, radius: 1, hp: 1, maxHp: 1, cls: 'air', alive: true,
       angle: a, aim: a, dist: 0, moving: 1, cool: 0, special: 0, salvo: 0, retarget: 0, target: null, goalX: tgt.x, goalY: tgt.y, flash: 0, vis, tag: null, tagUntil: 0,
-      bar: null, barBg: null, born: this.time, squad: 1, kills: 0, shield: 0, haste: 0, passes: 0, dropT: 0, dir: a, scale: 2.4,
+      bar: null, barBg: null, badge: null, badgeBg: null, born: this.time, squad: 1, kills: 0, shield: 0, haste: 0, passes: 0, dropT: 0, dir: a, scale: 2.4,
     };
     vis.root.scale.set(2.4);
     this.air.addChild(vis.root);
@@ -1978,6 +1989,16 @@ export class World {
         u.bar.position.set(x - bw / 2, y - off);
         u.bar.width = bw * Math.max(0, u.hp / u.maxHp);
         u.bar.height = 4;
+      }
+      if (u.badge && u.badgeBg) {
+        // chip left of the HP bar (tier 2+), or alone above the unit (tier 1)
+        const bw = Math.max(36, u.def.radius * 1.4);
+        const bx = u.bar ? x - bw / 2 - 6 - u.badge.width / 2 : u.tag?.visible ? x - u.tag.width / 2 - 6 - u.badge.width / 2 : x;
+        const by = y - (u.def.radius * u.scale + 14) + (u.bar ? 2 : 0);
+        u.badge.position.set(bx, by);
+        u.badgeBg.position.set(bx - u.badge.width / 2 - 3, by - u.badge.height / 2 + 1);
+        u.badgeBg.width = u.badge.width + 6;
+        u.badgeBg.height = u.badge.height - 2;
       }
     }
     for (const b of this.beams) {

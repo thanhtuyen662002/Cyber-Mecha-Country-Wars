@@ -195,6 +195,7 @@ export class Game {
         const maxN = tier >= 6 ? 3 : tier >= 4 ? 5 : 10;
         const n = Math.min(e.count, maxN);
         const extra = e.count - n;
+        w.summoned.add(key);
         for (let i = 0; i < n; i++) w.spawn(key, f.id, p.name, p.uid, rankOf(p.coins), undefined, i === n - 1 && extra > 0 ? 1 + Math.min(4, (extra / maxN) * 0.5) : 1);
         if (tier >= 5) w.dropCrate(true, p.name);
         this.onGift(p, f, e.gift, e.coins, e.count, key);
@@ -373,6 +374,7 @@ export class Game {
     f.chest += coins;
     while (f.chestStage < CHEST_GOALS.length && f.chest >= CHEST_GOALS[f.chestStage].coins) {
       const g = CHEST_GOALS[f.chestStage++];
+      w.summoned.add(g.units[0]);
       for (let i = 0; i < g.units[1]; i++) w.spawn(g.units[0], f.id, `${f.def.name} WAR CHEST`, `chest:${f.code}`, 0);
       this.onAlert(`${f.def.name.toUpperCase()} WAR CHEST`, `Goal reached → ${g.label} deployed!`, f.color, f.code);
       this.onFeed(`${f.def.name} war chest full → ${g.label}!`, f.code, f.color);

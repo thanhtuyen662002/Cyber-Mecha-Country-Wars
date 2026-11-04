@@ -113,4 +113,6 @@ export function tierOf(coins: number) {
   for (let i = 1; i < TIER_MIN.length; i++) if (coins >= TIER_MIN[i]) t = i;
   return t;
 }
+/** One colour per tier, used on unit badges and the HUD arsenal (T0 white ... T6 gold). */
+export const TIER_COLOR = [0xd8dee8, 0x5dff8a, 0x38e1ff, 0x5b8cff, 0xc06bff, 0xff9a3d, 0xffd34d];
 export const TIER_LABEL = (t: number) => (t === 0 ? 'free' : t === 6 ? `${TIER_MIN[6].toLocaleString('en-US')}+` : `${TIER_MIN[t].toLocaleString('en-US')}+`);
