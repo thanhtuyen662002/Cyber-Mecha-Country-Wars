@@ -73,6 +73,12 @@ export class Sfx {
   private trackGains: { calm: GainNode; battle: GainNode } | null = null;
   private trackSrc: { calm: AudioBufferSourceNode | null; battle: AudioBufferSourceNode | null } = { calm: null, battle: null };
   private loaded = false;
+  /** false until recorded audio has loaded (or failed): avoids synth->sample switching in the first seconds */
+  private ready = false;
+  private starts: number[] = []; // recent voice start times (global limiter)
+  private lastDuck = -10;
+  private mode: 'calm' | 'battle' = 'calm';
+  private modeT = -100;
 
   enable(on: boolean) {
     this.enabled = on;
@@ -80,9 +86,20 @@ export class Sfx {
     if (on) this.ctx?.resume();
     if (on && !this.loaded) {
       this.loaded = true;
-      void this.loadSamples();
+      // start nothing until the recordings are decoded (max 6 s), then fade everything in
+      const go = () => {
+        if (this.ready) return;
+        this.ready = true;
+        if (this.enabled) {
+          this.setMusic(true);
+          this.warmup(3);
+        }
+      };
+      void this.loadSamples().finally(go);
+      setTimeout(go, 6000);
     }
-    this.setMusic(on);
+    if (this.ready) this.setMusic(on);
+    else if (!on) this.setMusic(false);
     if (this.ctx) this.master.gain.setTargetAtTime(on ? 0.85 : 0, this.ctx.currentTime, 0.05);
     if (on) this.setAmbience(this.wantAmb, true);
   }
@@ -107,7 +124,15 @@ export class Sfx {
     limit.ratio.value = 20;
     limit.attack.value = 0.001;
     limit.release.value = 0.08;
-    this.master.connect(this.deafen).connect(comp).connect(limit).connect(c.destination);
+    // tame the top end: nothing piercing on phone speakers / earbuds
+    const shelf = c.createBiquadFilter();
+    shelf.type = 'highshelf';
+    shelf.frequency.value = 4500;
+    shelf.gain.value = -6;
+    const top = c.createBiquadFilter();
+    top.type = 'lowpass';
+    top.frequency.value = 12000;
+    this.master.connect(this.deafen).connect(shelf).connect(top).connect(comp).connect(limit).connect(c.destination);
 
     // SFX bus: weather tone -> master, with reverb + echo sends
     this.sfxTone = c.createBiquadFilter();
@@ -201,11 +226,16 @@ export class Sfx {
         return null;
       }
     };
-    for (const [kind, v] of Object.entries(m.sfx ?? {})) {
-      const bufs = (await Promise.all(v.files.map(load))).filter((b): b is AudioBuffer => !!b);
-      if (bufs.length) this.samples[kind as Kind] = { bufs, gain: v.gain ?? 1 };
-    }
-    for (const key of ['calm', 'battle'] as const) this.tracks[key] = (await Promise.all((m.music?.[key] ?? []).map(load))).filter((b): b is AudioBuffer => !!b);
+    const ok = (b: AudioBuffer | null): b is AudioBuffer => !!b;
+    await Promise.all([
+      ...Object.entries(m.sfx ?? {}).map(async ([kind, v]) => {
+        const bufs = (await Promise.all(v.files.map(load))).filter(ok);
+        if (bufs.length) this.samples[kind as Kind] = { bufs, gain: v.gain ?? 1 };
+      }),
+      ...(['calm', 'battle'] as const).map(async (key) => {
+        this.tracks[key] = (await Promise.all((m.music?.[key] ?? []).map(load))).filter(ok);
+      }),
+    ]);
     if (this.tracks.calm.length || this.tracks.battle.length) this.startTracks();
     console.info(`[sfx] recorded audio: ${Object.keys(this.samples).length} kinds, ${this.tracks.calm.length + this.tracks.battle.length} music tracks`);
   }
@@ -254,6 +284,15 @@ export class Sfx {
     return curve;
   }
 
+  /** Fade the SFX bus in (start of audio and of every round, when everything spawns and fires at once). */
+  warmup(sec = 4) {
+    if (!this.ctx) return;
+    const g = this.sfxBus.gain, t = this.ctx.currentTime;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(0.25, t);
+    g.linearRampToValueAtTime(1, t + sec);
+  }
+
   /** Weather changes how the battlefield sounds. */
   private toneFor(key: Ambience) {
     if (!this.ctx) return;
@@ -279,9 +318,14 @@ export class Sfx {
   private schedule() {
     const c = this.ctx!;
     if (this.trackGains) {
+      // one song at a time: switch calm <-> battle with hysteresis and at most every 20 s, slow cross-fade
       const I = this.intensity, t = c.currentTime;
-      this.trackGains.calm.gain.setTargetAtTime(Math.max(0, 1 - I * 1.4) * 1.6, t, 1.5);
-      this.trackGains.battle.gain.setTargetAtTime(Math.min(1, I * 1.4) * 1.6, t, 1.5);
+      if (t - this.modeT > 20 && ((this.mode === 'calm' && I > 0.65) || (this.mode === 'battle' && I < 0.35))) {
+        this.mode = this.mode === 'calm' ? 'battle' : 'calm';
+        this.modeT = t;
+      }
+      this.trackGains.calm.gain.setTargetAtTime(this.mode === 'calm' ? 1.5 : 0, t, 1.2);
+      this.trackGains.battle.gain.setTargetAtTime(this.mode === 'battle' ? 1.5 : 0, t, 1.2);
       for (const k of ['calm', 'battle'] as const) if (this.trackSrc[k]) this.trackSrc[k]!.playbackRate.value = this.urgent ? 1.04 : 1;
       this.nextTime = t;
       return;
@@ -406,10 +450,6 @@ export class Sfx {
     if (I > 0.6 && (s === 4 || s === 12)) {
       this.mnoise(t, this.noise, 'bandpass', 1900, this.menv(t, 0.3, 0.002, 0, 0.18, 0.6), 0.2, 0.9);
       this.mosc('triangle', 210, t, 0.1, this.menv(t, 0.18, 0.002, 0, 0.08, 0.2));
-      if (I > 0.85) {
-        // anvil: inharmonic metal partials
-        for (const [f, g] of [[1800, 0.03], [2470, 0.02], [3910, 0.012]]) this.mosc('sine', f, t, 0.4, this.menv(t, g, 0.001, 0, 0.35, 0.6));
-      }
     }
     // ---- drum roll into the next phrase
     if (I > 0.75 && bar % 4 === 3 && s >= 12) {
@@ -453,12 +493,12 @@ export class Sfx {
     }
     // ---- final minute: ticking clock + high string tremolo
     if (this.urgent) {
-      if (s % 2 === 0) this.mnoise(t, this.noise, 'bandpass', s % 8 === 0 ? 3800 : 5200, this.menv(t, 0.09, 0.001, 0, 0.03, 0.2), 0.04, 8);
+      if (s % 4 === 0) this.mnoise(t, this.noise, 'bandpass', s % 8 === 0 ? 1600 : 2000, this.menv(t, 0.05, 0.001, 0, 0.03, 0.2), 0.04, 6);
       if (s % 2 === 0) {
         const lp = c.createBiquadFilter();
         lp.type = 'lowpass';
-        lp.frequency.value = 3200;
-        lp.connect(this.menv(t, 0.02, 0.005, 0, d * 1.6, 0.6));
+        lp.frequency.value = 2000;
+        lp.connect(this.menv(t, 0.012, 0.005, 0, d * 1.6, 0.6));
         this.mosc('sawtooth', midi(chord[2] + 12), t, d * 2, lp, 3);
       }
     }
@@ -561,6 +601,11 @@ export class Sfx {
     const big = kind === 'bigboom' || kind === 'thunder' || kind === 'alarm';
     if (this.voices >= 22 && !big) return;
     if (dist > 0.95 && !big) return; // far away and small: inaudible anyway
+    if (!this.ready) return;
+    // global limiter: at most 7 new sounds per 120 ms so bursts never turn into a wall of noise
+    this.starts = this.starts.filter((x) => x > now - 0.12);
+    if (this.starts.length >= 7 && !big) return;
+    this.starts.push(now);
     this.last[kind] = now;
     this.voices++;
     const out = c.createGain();
@@ -700,9 +745,9 @@ export class Sfx {
         wet(0.7, 0.9);
         break;
       case 'laser': // charged beam: two detuned sweeps + sizzle
-        tone('sawtooth', now, 2400 * r(), 420, 0.11, 0.002, 0.13);
-        tone('square', now, 1210 * r(), 300, 0.06, 0.002, 0.11);
-        noise(this.noise, now, 'bandpass', 6000, 3000, 0.14, 0.002, 0.1, out, 3);
+        tone('sawtooth', now, 1300 * r(), 300, 0.07, 0.002, 0.13);
+        tone('square', now, 650 * r(), 200, 0.04, 0.002, 0.11);
+        noise(this.noise, now, 'bandpass', 3200, 1800, 0.06, 0.002, 0.1, out, 2);
         tone('sine', now, 90, 40, 0.3, 0.002, 0.15);
         wet(0.3, 0.2);
         break;
@@ -760,11 +805,11 @@ export class Sfx {
         wet(1.3, 0.8);
         break;
       }
-      case 'alarm': // military klaxon, two pulses
+      case 'alarm': // low war horn, two soft pulses (no piercing siren)
         for (let i = 0; i < 2; i++) {
-          const t = now + i * 0.55;
-          tone('sawtooth', t, 520, 700, 0.12, 0.02, 0.45);
-          tone('sawtooth', t, 523, 703, 0.08, 0.02, 0.45);
+          const t = now + i * 0.5;
+          tone('triangle', t, 196, 220, 0.16, 0.06, 0.4);
+          tone('sine', t, 98, 110, 0.12, 0.06, 0.4);
         }
         wet(0.6);
         break;
@@ -774,7 +819,7 @@ export class Sfx {
         wet(0.4);
         break;
       case 'whistle': { // incoming shell: falling whistle, slightly wobbly
-        const o = tone('sine', now, 2100 * r(), 650, 0.09, 0.15, 0.85);
+        const o = tone('sine', now, 1300 * r(), 420, 0.06, 0.15, 0.85);
         const v = c.createOscillator();
         v.frequency.value = 9;
         const vg = c.createGain();
@@ -787,15 +832,15 @@ export class Sfx {
         break;
       }
       case 'ricochet': { // bullet off armour: bright sweep down
-        const f = 2400 + Math.random() * 1600;
-        tone('sine', now, f, f * 0.55, 0.12, 0.002, 0.28);
-        noise(this.noise, now, 'bandpass', 4000, 2500, 0.15, 0.001, 0.05, out, 2);
+        const f = 1400 + Math.random() * 600;
+        tone('sine', now, f, f * 0.55, 0.05, 0.002, 0.22);
+        noise(this.noise, now, 'bandpass', 2500, 1500, 0.08, 0.001, 0.05, out, 2);
         wet(0.5);
         break;
       }
       case 'clang': // round hits a hull
-        for (const [f, g] of [[610, 0.2], [1530, 0.1], [2710, 0.05]]) tone('triangle', now, f * r(), f * 0.97, g, 0.001, 0.18);
-        noise(this.noise, now, 'highpass', 3000, 2000, 0.25, 0.001, 0.03);
+        for (const [f, g] of [[420, 0.18], [980, 0.07]]) tone('triangle', now, f * r(), f * 0.97, g, 0.001, 0.14);
+        noise(this.noise, now, 'bandpass', 1800, 1200, 0.15, 0.001, 0.03);
         wet(0.3);
         break;
       case 'splash': // shell into water: plunge + spray
@@ -805,38 +850,30 @@ export class Sfx {
         wet(0.5, 0.3);
         break;
       case 'steam': // fire meets rain/snow
-        noise(this.noise, now, 'highpass', 5000, 3000, 0.2, 0.05, 0.6);
-        noise(this.pink, now, 'bandpass', 3000, 2500, 0.1, 0.05, 0.5, out, 2);
+        noise(this.pink, now, 'bandpass', 2200, 1600, 0.12, 0.08, 0.6, out, 1.2);
         wet(0.2);
         break;
     }
     done();
   }
 
-  /** shell shock: everything goes dull for a moment, music dips, a faint ring in the ears */
+  /** shell shock: everything goes dull for a moment and the music dips */
   private duck(depth: number, sec: number) {
     const c = this.ctx!;
     const t = c.currentTime;
+    if (t - this.lastDuck < 1.5) return; // never flutter when blasts stack up
+    this.lastDuck = t;
+    depth *= 0.7;
     const f = this.deafen.frequency;
     f.cancelScheduledValues(t);
-    f.setValueAtTime(Math.max(300, 20000 * Math.pow(0.02, depth)), t + 0.06);
-    f.exponentialRampToValueAtTime(20000, t + 0.06 + sec);
+    f.setValueAtTime(f.value, t);
+    f.exponentialRampToValueAtTime(Math.max(600, 20000 * Math.pow(0.03, depth)), t + 0.08);
+    f.exponentialRampToValueAtTime(20000, t + 0.08 + sec);
     const m = this.musicDuck.gain;
     m.cancelScheduledValues(t);
     m.setValueAtTime(m.value, t);
-    m.linearRampToValueAtTime(1 - depth * 0.6, t + 0.05);
-    m.linearRampToValueAtTime(1, t + 0.05 + sec * 1.4);
-    if (depth >= 0.9) {
-      const o = c.createOscillator();
-      o.frequency.value = 3700 + Math.random() * 400;
-      const g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.025, t + 0.15);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15 + sec * 1.5);
-      o.connect(g).connect(c.destination); // bypasses the deafen filter: it is *in* your ears
-      o.start(t);
-      o.stop(t + 0.3 + sec * 1.5);
-    }
+    m.linearRampToValueAtTime(1 - depth * 0.5, t + 0.08);
+    m.linearRampToValueAtTime(1, t + 0.08 + sec * 1.4);
   }
 
   // ================================================================ weather ambience
