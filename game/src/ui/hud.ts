@@ -927,11 +927,12 @@ export class Hud {
       this.countText.style.fill = cd <= 3 ? 0xff3b3b : 0xffd34d;
     }
     const wd = WEATHERS.find((x) => x.key === game.weather)!;
-    this.weatherText.text = `${wd.icon} ${wd.name.toUpperCase()}`;
+    const wind = Math.abs(w.wind) > 100 ? ' ' + (w.wind > 0 ? '›' : '‹').repeat(Math.min(4, Math.round(Math.abs(w.wind) / 130))) : '';
+    this.weatherText.text = `${wd.icon} ${wd.name.toUpperCase()}${wind}`;
     if (game.nextWeather) {
       const nd = WEATHERS.find((x) => x.key === game.nextWeather)!;
       this.forecastText.text = `NEXT: ${nd.icon} ${nd.name} in ${Math.max(0, Math.ceil(game.weatherIn))}s`;
-    } else this.forecastText.text = wd.key === 'clear' ? ter.hint : wd.hint;
+    } else this.forecastText.text = wd.key === 'clear' ? ter.fx : wd.fx;
     for (const t of [this.throneCoins, this.throneCall, this.weatherText, this.forecastText]) t.scale.set(Math.min(1, 330 / Math.max(1, t.width / t.scale.x)));
     // country strip: top 6 by score
     const ranked = w.factions.filter((f) => f.id !== 0 && f.slot >= 0).sort((a, b) => b.score - a.score).slice(0, 6);

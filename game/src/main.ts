@@ -6,7 +6,7 @@ import '@fontsource/rajdhani/latin-600.css';
 import '@fontsource/rajdhani/latin-700.css';
 import { Application, Container, type Filter, Graphics, Rectangle, Sprite, type Texture } from 'pixi.js';
 import { AdvancedBloomFilter, ShockwaveFilter } from 'pixi-filters';
-import { H, SIM_DT, type TerrainKey, W, type WeatherKey, lerp, pick, rand } from './core/config';
+import { H, SIM_DT, TERRAINS, type TerrainKey, W, WEATHERS, type WeatherKey, lerp, pick, rand } from './core/config';
 import { UNITS, type UnitKey, setTierMin } from './core/units';
 import { makeFlags } from './draw/flags';
 import { makeFxTextures } from './draw/fxTextures';
@@ -230,14 +230,29 @@ async function main() {
       hud.cutIn(tier, key, unitName, name, f.code, f.color, Math.min(dur, 2.8));
       if (tier >= 5) sfx.play('alarm');
     },
-    sound: (k, v) => sfx.play(k, v),
+    sound: (k, v = 1, x?: number, y?: number) => {
+      if (x === undefined || y === undefined) return sfx.play(k, v);
+      // place the sound: stereo from the screen position, quieter + muffled when off screen
+      const sx = (x - cam.x) * cam.zoom + W / 2, sy = (y - cam.y) * cam.zoom + H / 2;
+      const off = Math.max(0, Math.abs(sx - W / 2) - W / 2, Math.abs(sy - H / 2) - H / 2) / (W * 0.6);
+      sfx.play(k, v * (0.85 + 0.15 * Math.min(2, cam.zoom)), (sx - W / 2) / (W / 2) * 0.8, Math.min(1, off));
+    },
     bolt: (x, y) => weather.boltAt(x, y),
   };
 
   game.onFeed = (t, code, color) => hud.pushFeed(t, code, color);
   game.onAlert = (title, sub, color, code) => (hud.alert(title, sub, color, code), sfx.play('alarm', 0.6));
-  game.onTerrain = (k) => setTerrain(k);
-  game.onWeather = (k) => setWeather(k);
+  game.onTerrain = (k) => {
+    setTerrain(k);
+    const td = TERRAINS.find((x) => x.key === k)!;
+    hud.alert(`BATTLEFIELD: ${td.name.toUpperCase()}`, td.fx, 0x7fd8ff);
+  };
+  game.onWeather = (k) => {
+    const changed = world.weather !== k;
+    setWeather(k);
+    const wd = WEATHERS.find((x) => x.key === k)!;
+    if (changed && k !== 'clear') hud.alert(`${wd.icon} ${wd.name.toUpperCase()}`, wd.fx, 0xffd34d);
+  };
   game.onRoundEnd = (s) => {
     hud.showVictory(s);
     sfx.play('bigboom');
@@ -263,6 +278,7 @@ async function main() {
   sim.auto = params.has('sim');
 
   const watchdog = new Watchdog({ saveNow: () => game.persist(), canvas: app.canvas, refreshHours: fc.refreshHours ?? 6, heapLimitMB: fc.heapLimitMB ?? 1500 });
+  if (params.has('nowatchdog')) watchdog.paused = true; // offline screenshot tools
 
   const stats = { fps: 60, quality: 'high' as 'high' | 'reduced' };
   await game.start();
@@ -353,6 +369,7 @@ async function main() {
     let target = 0.25 + Math.min(0.55, world.units.length / 110) + Math.min(0.3, shake / 60);
     if (shot || game.round.timeLeft < 60 || world.units.some((u) => u.def.tier >= 5)) target = 1;
     sfx.intensity += (Math.min(1, target) - sfx.intensity) * Math.min(1, realDt * 0.5);
+    sfx.urgent = game.round.state === 'battle' && game.round.timeLeft < 60;
 
     // auto quality (PLAN.md): avg FPS < 50 for 10 s -> fewer particles + no bloom; restore when stable
     lowFps = tk.FPS < 50 ? lowFps + realDt : Math.max(0, lowFps - realDt * 0.5);
@@ -375,7 +392,7 @@ async function main() {
 
   // debug hook for automated tests / screenshots
   (window as unknown as { cmcw: unknown }).cmcw = {
-    game, world, sim, queue, live, hud, setTerrain, setWeather, cam, focus,
+    game, world, sim, queue, live, hud, setTerrain, setWeather, cam, focus, view,
     step: (sec: number) => {
       for (let i = 0; i < sec * 30; i++) {
         game.tick(SIM_DT);

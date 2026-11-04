@@ -8,28 +8,28 @@ export const SIM_DT = 1 / SIM_HZ;
 
 export type TerrainKey = 'jungle' | 'desert' | 'ice' | 'volcano' | 'swamp' | 'sea' | 'city' | 'industrial';
 /** Rotation order: one terrain per round. */
-export const TERRAINS: { key: TerrainKey; name: string; groundSpeed: number; heavyPenalty: number; hint: string }[] = [
-  { key: 'jungle', name: 'Jungle', groundSpeed: 0.85, heavyPenalty: 1, hint: 'Snipers hide in the trees' },
-  { key: 'desert', name: 'Desert', groundSpeed: 0.9, heavyPenalty: 1, hint: 'Wheels sink, energy weapons overheat' },
-  { key: 'ice', name: 'Ice Field', groundSpeed: 1.1, heavyPenalty: 1, hint: 'Slippery: vehicles slide' },
-  { key: 'volcano', name: 'Volcano', groundSpeed: 0.95, heavyPenalty: 1, hint: 'Lava burns ground units, fly over it' },
-  { key: 'swamp', name: 'Toxic Swamp', groundSpeed: 0.75, heavyPenalty: 0.7, hint: 'Heavy units bog down' },
-  { key: 'sea', name: 'Sea & Islands', groundSpeed: 1, heavyPenalty: 1, hint: 'Water slows ground units: hovercraft rule' },
-  { key: 'city', name: 'Ruined City', groundSpeed: 1, heavyPenalty: 1, hint: 'Close-quarters street fights' },
-  { key: 'industrial', name: 'Industrial Zone', groundSpeed: 1, heavyPenalty: 1, hint: 'Fuel depots explode, pylons arc' },
+export const TERRAINS: { key: TerrainKey; name: string; groundSpeed: number; heavyPenalty: number; hint: string; fx: string }[] = [
+  { key: 'jungle', name: 'Jungle', groundSpeed: 0.85, heavyPenalty: 1, hint: 'Snipers hide in the trees', fx: 'Ground units -15% speed · mud when it rains' },
+  { key: 'desert', name: 'Desert', groundSpeed: 0.9, heavyPenalty: 1, hint: 'Wheels sink, energy weapons overheat', fx: 'Wheels -20% · energy weapons overheat · tracks in the sand' },
+  { key: 'ice', name: 'Ice Field', groundSpeed: 1.1, heavyPenalty: 1, hint: 'Slippery: vehicles slide', fx: '+10% speed but vehicles slide · tracks in the snow' },
+  { key: 'volcano', name: 'Volcano', groundSpeed: 0.95, heavyPenalty: 1, hint: 'Lava burns ground units, fly over it', fx: 'Lava burns ground units · ash clouds' },
+  { key: 'swamp', name: 'Toxic Swamp', groundSpeed: 0.75, heavyPenalty: 0.7, hint: 'Heavy units bog down', fx: 'Ground -25% · heavy units -30% · mud splashes' },
+  { key: 'sea', name: 'Sea & Islands', groundSpeed: 1, heavyPenalty: 1, hint: 'Water slows ground units: hovercraft rule', fx: 'Water: ground units -55% · hovercraft full speed' },
+  { key: 'city', name: 'Ruined City', groundSpeed: 1, heavyPenalty: 1, hint: 'Close-quarters street fights', fx: 'Concrete dust · close-quarters street fights' },
+  { key: 'industrial', name: 'Industrial Zone', groundSpeed: 1, heavyPenalty: 1, hint: 'Fuel depots explode, pylons arc', fx: 'Fuel depots explode · pylons arc · EMP +30%' },
 ];
 
 export type WeatherKey = 'clear' | 'rain' | 'storm' | 'blizzard' | 'fog' | 'wind' | 'sandstorm' | 'heatwave' | 'emstorm';
-export const WEATHERS: { key: WeatherKey; name: string; icon: string; hint: string }[] = [
-  { key: 'clear', name: 'Clear Skies', icon: '☀', hint: 'No modifiers' },
-  { key: 'rain', name: 'Heavy Rain', icon: '🌧', hint: 'Flames weaker, ground units slower' },
-  { key: 'storm', name: 'Thunderstorm', icon: '⛈', hint: 'Lightning hits tall mechs' },
-  { key: 'blizzard', name: 'Blizzard', icon: '❄', hint: 'Everyone slower, shorter range' },
-  { key: 'fog', name: 'Fog', icon: '🌫', hint: 'Snipers and bombers lose range' },
-  { key: 'wind', name: 'Strong Wind', icon: '💨', hint: 'Aircraft and rockets drift' },
-  { key: 'sandstorm', name: 'Sandstorm', icon: '🌪', hint: 'Short range, armour sandblasted' },
-  { key: 'heatwave', name: 'Heatwave', icon: '🔥', hint: 'Energy weapons overheat, fire burns hotter' },
-  { key: 'emstorm', name: 'EM Storm', icon: '🌀', hint: 'Drones fall, energy weapons supercharged' },
+export const WEATHERS: { key: WeatherKey; name: string; icon: string; hint: string; fx: string }[] = [
+  { key: 'clear', name: 'Clear Skies', icon: '☀', hint: 'No modifiers', fx: 'No modifiers' },
+  { key: 'rain', name: 'Heavy Rain', icon: '🌧', hint: 'Flames weaker, ground units slower', fx: 'Ground -12% speed · flames -45% · fire turns to steam' },
+  { key: 'storm', name: 'Thunderstorm', icon: '⛈', hint: 'Lightning hits tall mechs', fx: 'Ground -12% · lightning hits tall mechs · flames -45%' },
+  { key: 'blizzard', name: 'Blizzard', icon: '❄', hint: 'Everyone slower, shorter range', fx: 'All units -25% speed · range -20% · deep tracks' },
+  { key: 'fog', name: 'Fog', icon: '🌫', hint: 'Snipers and bombers lose range', fx: 'Sniper / AA / robot range -40%' },
+  { key: 'wind', name: 'Strong Wind', icon: '💨', hint: 'Aircraft and rockets drift', fx: 'Aircraft and rockets drift · bombs -20% · smoke blown away' },
+  { key: 'sandstorm', name: 'Sandstorm', icon: '🌪', hint: 'Short range, armour sandblasted', fx: 'Range -30% · armour sandblasted · aircraft -20%' },
+  { key: 'heatwave', name: 'Heatwave', icon: '🔥', hint: 'Energy weapons overheat, fire burns hotter', fx: 'Energy weapons overheat · fire +25% and bigger' },
+  { key: 'emstorm', name: 'EM Storm', icon: '🌀', hint: 'Drones fall, energy weapons supercharged', fx: 'Drones fry · energy weapons +30% · radar -25%' },
 ];
 
 /** Spots the terrain painter keeps clear of props (fortress slots). Set before building terrain. */

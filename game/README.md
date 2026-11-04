@@ -66,6 +66,15 @@ Ranh giới mức xu, nước khởi đầu, thời lượng vòng… nằm tron
 - **Bình chọn thời tiết:** 45–15 giây trước khi đổi thời tiết, chat `!rain !storm !snow !fog !wind !sand !heat !emp` (người có cấp cao được tính nhiều phiếu hơn).
 - **Sau mỗi trận:** trang 2 của màn chiến thắng hiện bảng mùa (thắng/xu theo tháng) và Hall of Legends (top người ủng hộ mọi thời đại, cấp được giữ mãi).
 
+## Âm thanh, nhạc và vật lý môi trường
+
+- **Âm thanh đặt trong chiến trường:** tiếng bên trái màn hình nghe bên tai trái, tiếng ngoài màn hình nhỏ và đục hơn. Mỗi vụ nổ có tiếng nổ chát, cú đấm trầm vào ngực, quả cầu lửa, tiếng ù kéo dài, mảnh kim loại rơi lách cách và tiếng vọng từ hai bên đồi. Nổ cực lớn (Titan chết, pháo đài nổ) làm cả âm thanh đục đi một nhịp kèm tiếng ù tai.
+- **Âm thanh mới:** pháo rơi rít trước khi chạm đất, đạn bật khỏi giáp, đạn găm thép, đạn pháo rơi xuống nước, lửa gặp mưa xì hơi. Nền chiến trường xa (pháo và súng máy vọng lại) to dần theo độ căng của trận.
+- **Thời tiết đổi màu âm thanh:** mưa, tuyết, sương mù, bão cát làm tiếng nổ đục và xa hơn.
+- **Nhạc nền mới** (tự sáng tác, không bản quyền) kiểu nhạc phim chiến tranh, Rê thứ: dàn dây, đoạn dây nảy liên tục, trống taiko, kèn đồng trầm, giai điệu kèn hùng tráng, hợp xướng và tiếng "braam" lớn. Các lớp nhạc vào dần theo số quân và quân lớn trên sân. Phút cuối: nhịp nhanh hơn, lên nửa cung, thêm tiếng đồng hồ tích tắc.
+- **Vật lý theo mặt đất** (`src/sim/surface.ts`): tuyết bung trắng và để lại vệt xích sâu, cát bốc cột bụi lâu tan, bùn văng và bám vết, nước dựng cột nước và gợn sóng quanh xe, bê tông tung bụi xám và tia lửa, núi lửa tung tro và than hồng. Xe trên băng trượt ngang để lại vệt trượt. Trời mưa: bánh xe té nước, lửa bốc hơi nước trắng. Nắng nóng: lửa to hơn. Khói và bụi bay theo gió.
+- **Thời tiết hiện rõ:** đổi thời tiết hoặc địa hình hiện banner ghi rõ tác động ("All units -25% speed · range -20%"), góc trên luôn ghi tác động hiện tại và mũi tên hướng gió. Quân đổi màu theo thời tiết (phủ sương giá khi bão tuyết, bụi khi bão cát, ướt khi mưa).
+
 ## Có gì trong bản này
 
 - **Bản đồ:** 1 màn hình, 12 vị trí pháo đài quanh rìa (pháo đài thu nhỏ khi đông nước), 3 cứ điểm giữa sân: Energy Core (cả phe bắn nhanh hơn 30%), Repair Depot (hồi máu), Factory (tự ra lính mỗi 10 giây). Quá 12 nước thì nước lâu không tương tác nhất "ngủ" và nhường chỗ.
@@ -97,7 +106,7 @@ Tham số URL khác: `?sim` bật người xem giả lập, `?nolive` không k�
 - Bản đồ lục giác nở ra theo số nước (bản này dùng 12 vị trí trên 1 màn hình), tiền đồn cho nước ngủ.
 - Lưới nguyên tố (cháy lan, đóng băng, giật điện qua nước, axit, nổ metan), nhà phá hủy được.
 - Skin/khung tên theo cấp bậc, avatar người tặng (bình chọn thời tiết, Boss Raid, bảng mùa đã có, xem mục trên).
-- Âm thanh file thật (hiện vẫn là âm tổng hợp từ art-lab), đo FPS và soak test 72 giờ trên máy stream.
+- Âm thanh file thật nếu cần (hiện là âm tổng hợp bằng code), đo FPS và soak test 72 giờ trên máy stream.
 
 ## Cấu trúc
 

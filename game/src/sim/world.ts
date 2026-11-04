@@ -11,6 +11,8 @@ import type { FxTextures } from '../draw/fxTextures';
 import type { UnitArt } from '../draw/units';
 import type { Particles } from '../fx/particles';
 import { type FortressView, type UnitVisual, buildFortress, buildVisual } from './visuals';
+import type { SfxKind } from '../fx/sfx';
+import { LOOK, type Mat, surfaceAt } from './surface';
 
 export const UNIT_CAP = 250;
 const FORT_HP = 12000;
@@ -99,7 +101,7 @@ interface Proj {
   kind: ProjKind; s: Sprite; alive: boolean;
   x: number; y: number; tx: number; ty: number; speed: number;
   fid: number; dmg: number; splash: number; target: Target | null; tint: number; trail: number;
-  w: keyof typeof COUNTER; owner: Unit | null; air: boolean;
+  w: keyof typeof COUNTER; owner: Unit | null; air: boolean; whistle: boolean;
 }
 interface Beam { s: Sprite; core: Sprite; life: number; max: number; w: number }
 interface Wreck { s: Sprite; life: number; smoke: number }
@@ -132,7 +134,7 @@ export interface WorldHooks {
   cinematic(u: { x: number; y: number }, tier: number, key: UnitKey, name: string, unitName: string, f: Faction): void;
   /** Draw a lightning bolt onto a world point (no damage: the caller applies it). */
   bolt(x: number, y: number): void;
-  sound(kind: 'gun' | 'cannon' | 'laser' | 'rocket' | 'boom' | 'bigboom' | 'thunder' | 'alarm' | 'flak' | 'sniper' | 'flame' | 'drop', vol?: number): void;
+  sound(kind: SfxKind, vol?: number, x?: number, y?: number): void;
 }
 
 const ENERGY = new Set<keyof typeof COUNTER>(['laser', 'emp', 'storm', 'titan', 'orbital']);
@@ -204,7 +206,7 @@ export class World {
       s.anchor.set(1, 0.5);
       s.visible = false;
       this.proj.addChild(s);
-      this.projs.push({ kind: 'bullet', s, alive: false, x: 0, y: 0, tx: 0, ty: 0, speed: 0, fid: 0, dmg: 0, splash: 0, target: null, tint: 0, trail: 0, w: 'rifle', owner: null, air: false });
+      this.projs.push({ kind: 'bullet', s, alive: false, x: 0, y: 0, tx: 0, ty: 0, speed: 0, fid: 0, dmg: 0, splash: 0, target: null, tint: 0, trail: 0, w: 'rifle', owner: null, air: false, whistle: false });
     }
     for (let i = 0; i < 60; i++) {
       const s = new Sprite(fx.beam);
@@ -320,7 +322,7 @@ export class World {
       this.particles.sparks(s.x, s.y, 40, f.color, 500);
       this.stampDecal(this.fx.scorch, s.x, s.y, 2.2, 0.6);
       this.hooks?.shake(10);
-      this.hooks?.sound('bigboom', 0.6);
+      this.hooks?.sound('bigboom', 0.6, s.x, s.y);
     }
   }
 
@@ -440,7 +442,7 @@ export class World {
             const f = this.factions[best];
             this.hooks.feedText(`${f.def.name} captured the ${c.name}!`, f.code, f.color);
             this.particles.ring(c.x, c.y, 4, f.color, 0.6);
-            this.hooks.sound('alarm', 0.4);
+            this.hooks.sound('alarm', 0.4, c.x, c.y);
           }
         } else {
           c.progress -= 0.08;
@@ -721,7 +723,7 @@ export class World {
       if (d) d.angle = d.aim = u.angle;
     }
     this.particles.ring(u.x, u.y, 1.2, this.factions[u.fid].color, 0.35);
-    this.hooks.sound('rocket', 0.5);
+    this.hooks.sound('rocket', 0.5, u.x, u.y);
   }
 
   // ================================================================ orbital cannon (tier 6)
@@ -756,7 +758,7 @@ export class World {
     }
     if (o.t < 2.2 + dt * 1.5) {
       this.hooks.bigBoom(o.x, o.y, 1);
-      this.hooks.sound('bigboom');
+      this.hooks.sound('bigboom', 1, o.x, o.y);
       this.hooks.shake(30);
     }
     if (o.t < 4.8) {
@@ -811,7 +813,7 @@ export class World {
     this.stampDecal(this.fx.scorch, d.x, d.y, 2, 1);
     this.hooks.bigBoom(d.x, d.y, 0.5);
     this.hooks.shake(16);
-    this.hooks.sound('bigboom', 0.8);
+    this.hooks.sound('bigboom', 0.8, d.x, d.y);
     this.addHeat(d.x, d.y, 20);
     // chain reaction: the blast hurts everyone (no faction is safe) and can set off neighbours
     for (const u of this.near(d.x, d.y, 130)) {
@@ -872,7 +874,7 @@ export class World {
         this.particles.sparks(best.x, best.y, 10, 0xcfe8ff, 260);
         best.hp -= 50;
         best.flash = 1;
-        this.hooks.sound('laser', 0.3);
+        this.hooks.sound('laser', 0.3, best.x, best.y);
         if (best.hp <= 0) this.kill(best, null, -1, 'pylon');
       });
     }
@@ -942,7 +944,7 @@ export class World {
           c.chute.visible = false;
           c.view.x = c.x;
           this.particles.ring(c.x, c.y, 1.4, 0xffffff, 0.4);
-          this.hooks.sound('drop', 0.8);
+          this.hooks.sound('drop', 0.8, c.x, c.y);
           // reparent to the ground layer once landed
           this.ground.addChild(c.view);
         }
@@ -1006,6 +1008,7 @@ export class World {
     p.w = w;
     p.owner = owner;
     p.air = target.cls === 'air';
+    p.whistle = w === 'artillery';
     p.speed = kind === 'bullet' ? 1400 : kind === 'shell' ? 900 : 520;
     const s = p.s;
     s.visible = true;
@@ -1120,6 +1123,110 @@ export class World {
     this.renderer.render({ container: this.stamp, target: this.rt, clear: false });
   }
 
+  // ================================================================ ground physics: terrain + weather made visible
+  private mat(x: number, y: number): Mat {
+    return surfaceAt(this.terrain, this.weather, x, y);
+  }
+
+  /** Something hits the ground; the ground answers in its own material.
+   *  power 0.5 = bullet puff, 1 = shell, 2-3 = vehicle wreck / bomb, 4+ = mega blast. */
+  groundFx(x: number, y: number, power: number) {
+    const m = this.mat(x, y), L = LOOK[m], P = this.particles, fx = this.fx;
+    const smoke = () => fx.smoke[(Math.random() * 3) | 0];
+    const n = (k: number) => Math.max(1, Math.round(k * P.budget));
+    if (power < 0.8) {
+      if (m === 'water') P.spawn(fx.ring, false, x, y, 0, 0, 0.35, 0.03, 0.12, 0.6, 0, 0xdcefff);
+      else P.spawn(smoke(), false, x, y, rand(-15, 15), rand(-28, -8), rand(0.4, 0.8), 0.06, 0.28, L.dustAlpha * 0.8, 0, L.dust, { wind: 1, drag: 2 });
+      if (m === 'concrete' && Math.random() < 0.4) P.sparks(x, y, 1, 0xffe0a0, 200);
+      return;
+    }
+    const k = Math.sqrt(power);
+    if (m === 'water') {
+      // geyser: white column shooting up, rings spreading, spray drifting off
+      for (let i = 0; i < n(10 + power * 6); i++) {
+        const a = -Math.PI / 2 + rand(-0.35, 0.35), v = rand(160, 360) * k;
+        P.spawn(fx.spark, false, x + rand(-8, 8) * k, y, Math.cos(a) * v, Math.sin(a) * v, rand(0.5, 0.9), 0.5 * k, 0.2, 0.95, 0, 0xf0f8ff, { drag: 2.2, stretch: 2.5, wind: 0.3 });
+      }
+      for (let i = 0; i < 3; i++) P.spawn(fx.ring, false, x, y, 0, 0, 0.9 + i * 0.3, 0.1 * k, (0.6 + i * 0.35) * k, 0.7, 0, 0xdcefff, { delay: i * 0.12 });
+      for (let i = 0; i < n(4 + power * 2); i++)
+        P.spawn(smoke(), false, x + rand(-12, 12) * k, y - rand(0, 40) * k, rand(-20, 20), rand(-50, -15), rand(1.2, 2), 0.3 * k, 1.1 * k, 0.55, 0, 0xeef6ff, { wind: 1, drag: 0.8, delay: 0.1 });
+      this.hooks.sound('splash', Math.min(1, 0.4 + power * 0.15), x, y);
+      return;
+    }
+    // ground ring of material hugging the floor
+    for (let i = 0; i < n(6 + power * 3); i++) {
+      const a = rand(0, 6.28), v = rand(70, 150) * k;
+      P.spawn(smoke(), false, x, y, Math.cos(a) * v, Math.sin(a) * v * 0.7, rand(0.8, 1.4) * (0.7 + L.plume * 0.4), 0.2 * k, 0.7 * k, L.dustAlpha, 0, L.dust, { drag: 2.6, spin: rand(-1, 1), wind: 0.6 });
+    }
+    // plume of material thrown up, lingers by material (sand hangs, mud drops)
+    for (let i = 0; i < n(3 + power * 2 * L.plume); i++)
+      P.spawn(smoke(), false, x + rand(-14, 14) * k, y + rand(-10, 10) * k, rand(-14, 14), rand(-60, -25) * L.plume, rand(1.4, 2.4) * L.plume + 0.6, 0.35 * k, 1.5 * k, L.dustAlpha * 0.9, 0, L.dust, { wind: 1.1, drag: 0.7, spin: rand(-0.4, 0.4), delay: rand(0, 0.15) });
+    // chunks of the ground itself (snow clods, mud, rubble, sand)
+    for (let i = 0; i < n(4 + power * 3); i++) {
+      const a = rand(0, 6.28), v = rand(120, 260) * k;
+      P.spawn(fx.debris, false, x, y, Math.cos(a) * v, Math.sin(a) * v, rand(0.6, 1.1), rand(0.4, 0.8), 0.3, 1, 0.7, L.chunk, { spin: rand(-12, 12), drag: 2.5, arc: rand(0.8, 1.6) });
+    }
+    if (m === 'mud') // splatter marks around the hole
+      for (let i = 0; i < Math.min(6, 2 + power); i++) this.stampDecal(this.fx.scorch, x + rand(-30, 30) * k, y + rand(-30, 30) * k, rand(0.2, 0.45) * k, 0.55, rand(0, 6.28), 0x2a3010);
+    if (m === 'snow') { // white powder blown out + exposed dark ground
+      this.stampDecal(this.fx.crater, x, y, 0.35 * k, 0.5, rand(0, 6.28), 0x5a6a7a);
+      for (let i = 0; i < n(4); i++) P.sparkle(x + rand(-30, 30) * k, y + rand(-30, 30) * k);
+    }
+    if (m === 'concrete') P.sparks(x, y, 3 + power * 2, 0xffd890, 300);
+    if (m === 'ash') for (let i = 0; i < n(4 + power * 2); i++)
+      P.spawn(fx.glow, true, x + rand(-20, 20) * k, y + rand(-20, 20) * k, rand(-30, 30), rand(-80, -30), rand(1, 2), 0.08, 0.03, 1, 0, 0xff7a30, { wind: 1, drag: 0.6, delay: rand(0, 0.4) });
+    this.fireWeather(x, y, power);
+  }
+
+  /** Fire meets the weather: rain and snow hiss it out into steam, a heatwave makes it roar. */
+  private fireWeather(x: number, y: number, power: number) {
+    const P = this.particles, w = this.weather;
+    if (w === 'rain' || w === 'storm' || w === 'blizzard') {
+      for (let i = 0; i < Math.max(1, Math.round(power * 1.5 * P.budget)); i++)
+        P.spawn(this.fx.smoke[i % 3], false, x + rand(-14, 14), y + rand(-14, 14), rand(-10, 10), rand(-60, -30), rand(1, 1.8), 0.25, 1.2 * Math.sqrt(power), 0.5, 0, 0xf4f8ff, { wind: 1, drag: 0.5, delay: rand(0.05, 0.3) });
+      if (Math.random() < 0.25) this.hooks.sound('steam', 0.5, x, y);
+    } else if (w === 'heatwave') {
+      for (let i = 0; i < Math.max(1, Math.round(power * 2 * P.budget)); i++) P.flame(x + rand(-16, 16), y + rand(-16, 16), 0.9 + power * 0.2);
+    }
+  }
+
+  /** Wheels, tracks and feet on the ground: marks, dust, wakes, skids. slip = angle between where it goes and where it wants to go. */
+  private stepFx(u: Unit, v: number, slip: number, dt: number) {
+    if (v < 6) return;
+    const m = this.mat(u.x, u.y), L = LOOK[m], P = this.particles;
+    const heavy = u.cls === 'vehicle' || u.cls === 'mech';
+    const hover = u.def.key === 'hover';
+    const ca = Math.cos(u.angle), sa = Math.sin(u.angle);
+    const rx = u.x - ca * u.radius * 0.7, ry = u.y - sa * u.radius * 0.7;
+    if (m === 'water') {
+      if (Math.random() < dt * (heavy ? 9 : 4)) {
+        P.spawn(this.fx.ring, false, rx, ry, 0, 0, 0.9, 0.05, heavy ? u.radius / 50 : 0.25, 0.55, 0, 0xdcefff);
+        P.spawn(this.fx.spark, false, rx + rand(-6, 6), ry + rand(-6, 6), -ca * 60 + rand(-40, 40), -sa * 60 + rand(-40, 40), 0.4, 0.3, 0.1, 0.8, 0, 0xffffff, { drag: 3, stretch: 2 });
+      }
+      return;
+    }
+    if (L.track >= 0 && !hover) {
+      if (heavy && Math.random() < dt * 9) {
+        const w = u.radius * 0.5, sc = clamp(u.radius / 28, 0.6, 1.6);
+        for (const s of [-1, 1]) this.stampDecal(this.fx.track, u.x - sa * w * s, u.y + ca * w * s, sc, L.trackAlpha, u.angle + Math.PI / 2, L.track);
+      } else if (u.cls === 'inf' && (m === 'snow' || m === 'sand' || m === 'mud') && Math.random() < dt * 2.5)
+        this.stampDecal(this.fx.track, u.x, u.y, 0.28, L.trackAlpha * 0.8, u.angle + Math.PI / 2, L.track);
+    }
+    const soft = m === 'sand' || m === 'snow' || m === 'ash';
+    const rate = heavy ? (soft ? 12 : m === 'concrete' ? 3 : 6) : soft ? 3 : 1;
+    if (Math.random() < dt * rate * P.budget)
+      P.spawn(this.fx.smoke[(Math.random() * 3) | 0], false, rx + rand(-8, 8), ry + rand(-8, 8), -ca * v * 0.15 + rand(-10, 10), -sa * v * 0.15 + rand(-14, 0), rand(0.8, 1.6), heavy ? 0.15 : 0.08, heavy ? clamp(u.radius / 30, 0.5, 1.6) : 0.35, L.dustAlpha * (heavy ? 0.6 : 0.4), 0, L.dust, { wind: 1, drag: 1, spin: rand(-0.6, 0.6) });
+    if (m === 'mud' && heavy && Math.random() < dt * 5)
+      P.spawn(this.fx.debris, false, rx, ry, -ca * 80 + rand(-60, 60), -sa * 80 + rand(-60, 60), 0.5, 0.35, 0.2, 1, 0.6, L.chunk, { drag: 3, arc: 0.8, spin: rand(-8, 8) });
+    // ice: vehicles slide sideways, leaving pale skid streaks and ice spray
+    if (this.terrain === 'ice' && heavy && slip > 0.3 && v > 18 && Math.random() < dt * 16) {
+      this.stampDecal(this.fx.track, rx, ry, clamp(u.radius / 28, 0.6, 1.4), 0.45, Math.atan2(u.vy, u.vx) + Math.PI / 2, 0xd8e6f6);
+      P.spawn(this.fx.spark, false, rx, ry, -u.vx * 0.5 + rand(-40, 40), -u.vy * 0.5 + rand(-40, 40), 0.45, 0.35, 0.1, 0.9, 0, 0xf4faff, { drag: 3, stretch: 2 });
+    }
+    // rain: puddle splashes under wheels and boots
+    if ((this.weather === 'rain' || this.weather === 'storm') && Math.random() < dt * (heavy ? 6 : 2)) this.splash(rx + rand(-10, 10), ry + rand(-10, 10));
+  }
+
   clearDecals() {
     this.renderer.render({ container: new Container(), target: this.rt, clear: true });
   }
@@ -1150,7 +1257,8 @@ export class World {
     }
     this.hooks.feedKill({ killer, killerFid, victim: u, cause });
     this.particles.explode(u.x, u.y, tier + (u.def.key === 'drone' ? 1 : 0));
-    this.hooks.sound(tier >= 2 ? 'boom' : 'gun', tier >= 2 ? 1 : 0.4);
+    this.hooks.sound(tier >= 2 ? 'boom' : 'gun', tier >= 2 ? 1 : 0.4, u.x, u.y);
+    if (u.cls !== 'air') this.groundFx(u.x, u.y, 1 + tier * 0.5);
     if (u.cls !== 'air' || u.def.key === 'heli') {
       if (tier >= 2) this.stampDecal(this.fx.crater, u.x, u.y, 0.4 + tier * 0.15, 0.8);
       this.stampDecal(this.fx.scorch, u.x, u.y, 0.5 + tier * 0.25, 0.9);
@@ -1182,7 +1290,8 @@ export class World {
     this.hooks.shake(32);
     this.hooks.bigBoom(x, y, 1);
     this.hooks.hitStop(0.09);
-    this.hooks.sound('bigboom');
+    this.hooks.sound('bigboom', 1, x, y);
+    this.groundFx(x, y, 5);
     this.addHeat(x, y, 40);
   }
 
@@ -1319,6 +1428,7 @@ export class World {
       if (b.t > 0) continue;
       b.alive = false;
       this.particles.explode(b.x, b.y, b.tier);
+      this.groundFx(b.x, b.y, 1 + b.tier * 0.4);
       this.stampDecal(this.fx.scorch, b.x, b.y, 0.5 + b.tier * 0.2, 0.9);
       if (b.tier >= 3) this.stampDecal(this.fx.crater, b.x, b.y, 0.3 + b.tier * 0.12, 0.8);
       this.splashAt(b.x, b.y, b.r, b.dmg, b.fid, false, 'bombs', b.owner);
@@ -1328,7 +1438,7 @@ export class World {
           if (f.id !== b.fid && t.alive && Math.hypot(t.x - b.x, t.y - b.y) < t.radius + b.r) this.damage(t, b.fortDmg, 'bombs', b.owner, b.fid);
         }
       this.hooks.shake(3 + b.tier * 2);
-      this.hooks.sound('boom', 0.5);
+      this.hooks.sound('boom', 0.5, b.x, b.y);
     }
     for (const f of this.slotted) {
       const t = f.fort!;
@@ -1463,9 +1573,7 @@ export class World {
     const aimWant = tgt ? Math.atan2(tgt.y - u.y, tgt.x - u.x) : u.angle;
     u.aim += angDiff(u.aim, aimWant) * Math.min(1, dt * 5);
 
-    if ((def.key === 'tank' || def.key === 'aa') && v > 8 && Math.random() < dt * 8 && this.terrain !== 'city') {
-      for (const s of [-1, 1]) this.stampDecal(this.fx.track, u.x - Math.sin(u.angle) * 17 * s, u.y + Math.cos(u.angle) * 17 * s, 1, 0.5, u.angle + Math.PI / 2);
-    }
+    if (u.cls !== 'air') this.stepFx(u, v, Math.abs(angDiff(Math.atan2(u.vy, u.vx), Math.atan2(dy, dx))), dt);
     if (def.key === 'hover' && v > 10 && Math.random() < dt * 10) this.particles.smokePuff(u.x - Math.cos(u.angle) * 44 + rand(-14, 14), u.y - Math.sin(u.angle) * 44 + rand(-14, 14), 0.5, this.terrain === 'ice' ? 0xe8f0ff : 0xa89a80, 1, 0.35);
     if (def.key === 'carrier') this.carrierLaunch(u, dt);
     if (def.key === 'stormfort' && Math.random() < dt * 1.5) this.particles.sparks(u.x + rand(-40, 40), u.y + rand(-40, 40), 3, 0xb8c8ff, 160);
@@ -1482,7 +1590,8 @@ export class World {
       this.particles.explode(u.x, u.y, 3);
       this.splashAt(u.x, u.y, 60, def.dmg, u.fid, true, 'kamikaze', u);
       if (tgt.cls === 'fort') this.damage(tgt, def.dmg, 'kamikaze', u, u.fid);
-      this.hooks.sound('boom', 0.7);
+      this.hooks.sound('boom', 0.7, u.x, u.y);
+      this.groundFx(u.x, u.y, 2);
       this.stampDecal(this.fx.scorch, u.x, u.y, 0.8, 0.9);
       this.hooks.shake(5);
       this.removeUnit(u);
@@ -1527,6 +1636,7 @@ export class World {
         u.cool = strike ? 0.07 : u.def.fireInterval;
         const off = rand(-40, 40) * (strike ? 3 : 1);
         const bx = u.x - Math.cos(u.angle) * 30 - Math.sin(u.angle) * off, by = u.y - Math.sin(u.angle) * 30 + Math.cos(u.angle) * off;
+        if (Math.random() < (strike ? 0.15 : 0.5)) this.hooks.sound('whistle', 0.5, bx, by);
         this.delayedBlast(0.45, bx, by, strike ? 110 : 55, strike ? 700 : u.def.dmg * (this.weather === 'wind' ? 0.8 : 1), u.fid, strike ? 4 : 2, u, strike ? 260 : 60);
       }
     }
@@ -1557,7 +1667,7 @@ export class World {
         const m = this.muzzle(u, 21, 4);
         this.particles.muzzle(m.x, m.y, u.aim, 0.25, 0xffd27a);
         this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, 0, 0xffe2a0, 'rifle', 10);
-        this.hooks.sound('gun', 0.3);
+        this.hooks.sound('gun', 0.3, u.x, u.y);
         break;
       }
       case 'sniper': {
@@ -1566,14 +1676,14 @@ export class World {
         this.beam(m.x, m.y, t.x, t.y, 3, 0xfff2c0, 0.12);
         this.particles.sparks(t.x, t.y, 4, 0xffffff, 200);
         this.damage(t, dmg, 'sniper', u, u.fid);
-        this.hooks.sound('sniper', 0.5);
+        this.hooks.sound('sniper', 0.5, u.x, u.y);
         break;
       }
       case 'atRocket': {
         const m = this.muzzle(u, 28, -7);
         this.particles.smokePuff(u.x - Math.cos(u.aim) * 14, u.y - Math.sin(u.aim) * 14, 0.6, 0x9a9a9a, 1);
         this.fire('rocket', m.x, m.y, t, u, u.fid, dmg, 30, 0xffffff, 'atRocket', 6);
-        this.hooks.sound('rocket', 0.4);
+        this.hooks.sound('rocket', 0.4, u.x, u.y);
         break;
       }
       case 'flame': {
@@ -1584,7 +1694,8 @@ export class World {
           this.particles.spawn(this.fx.flame, true, m.x, m.y, Math.cos(a) * v, Math.sin(a) * v, 0.32, 0.25, 0.9, 1, 0, 0xffe08a, { c1: 0xff3000, drag: 2, rot: a + Math.PI / 2 });
         }
         this.damage(t, dmg * wet, 'flame', u, u.fid);
-        this.hooks.sound('flame', 0.45);
+        this.fireWeather(t.x, t.y, 1);
+        this.hooks.sound('flame', 0.45, u.x, u.y);
         if (Math.random() < 0.05) this.stampDecal(this.fx.scorch, t.x, t.y, 0.4, 0.5);
         break;
       }
@@ -1594,7 +1705,7 @@ export class World {
         this.particles.smokePuff(m.x, m.y, 0.5, 0x777777, 1.2);
         u.flash = 0.6;
         this.fire('shell', m.x, m.y, t, u, u.fid, dmg, u.def.key === 'mbt' ? 60 : 40, 0xffd28a, 'shell', 12);
-        this.hooks.sound('cannon', u.def.key === 'mbt' ? 0.8 : 0.5);
+        this.hooks.sound('cannon', u.def.key === 'mbt' ? 0.8 : 0.5, u.x, u.y);
         break;
       }
       case 'flak': {
@@ -1602,7 +1713,7 @@ export class World {
         const m = this.muzzle(u, 24, 11 * side);
         this.particles.muzzle(m.x, m.y, u.aim, 0.3, 0xfff0a0);
         this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, t.cls === 'air' ? 26 : 0, 0xfff0a0, 'flak', 16);
-        this.hooks.sound('flak', 0.35);
+        this.hooks.sound('flak', 0.35, u.x, u.y);
         break;
       }
       case 'laser': {
@@ -1613,7 +1724,7 @@ export class World {
         this.particles.sparks(hx, hy, 3, f.color, 200);
         this.particles.flash(hx, hy, 0.3, f.color, 0.1);
         this.damage(t, dmg, 'laser', u, u.fid);
-        this.hooks.sound('laser', 0.25);
+        this.hooks.sound('laser', 0.25, u.x, u.y);
         break;
       }
       case 'rocket': {
@@ -1622,7 +1733,7 @@ export class World {
           this.particles.muzzle(m.x, m.y, u.aim, 0.4, 0xffb060);
           this.fire('rocket', m.x, m.y, t, u, u.fid, dmg, 45, 0xffffff, 'rocket', 20);
         }
-        this.hooks.sound('rocket', 0.45);
+        this.hooks.sound('rocket', 0.45, u.x, u.y);
         break;
       }
       case 'robot': {
@@ -1630,7 +1741,7 @@ export class World {
         this.particles.muzzle(m.x, m.y, u.aim, 0.9, f.color);
         u.flash = 0.6;
         this.fire('shell', m.x, m.y, t, u, u.fid, dmg, 50, f.color, 'robot', 14);
-        this.hooks.sound('cannon', 0.6);
+        this.hooks.sound('cannon', 0.6, u.x, u.y);
         break;
       }
       case 'titan': {
@@ -1638,14 +1749,14 @@ export class World {
         const m = this.muzzle(u, 68, 36 * side);
         this.particles.muzzle(m.x, m.y, u.aim, 0.45, f.color);
         this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, 0, f.color, 'titan', 22);
-        this.hooks.sound('gun', 0.45);
+        this.hooks.sound('gun', 0.45, u.x, u.y);
         break;
       }
       case 'mg': {
         const m = this.muzzle(u, 20, 0);
         this.particles.muzzle(m.x, m.y, u.aim, 0.3, 0xffe08a);
         this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, 0, 0xffe2a0, 'mg', 14);
-        if (u.salvo++ % 3 === 0) this.hooks.sound('gun', 0.3);
+        if (u.salvo++ % 3 === 0) this.hooks.sound('gun', 0.3, u.x, u.y);
         break;
       }
       case 'artillery': {
@@ -1656,7 +1767,7 @@ export class World {
           this.fire('rocket', m.x, m.y, t, u, u.fid, dmg, 55, 0xffffff, 'artillery', 70);
         }
         this.particles.smokePuff(u.x, u.y, 1.4, 0x9a9a9a, 2.2, 0.5);
-        this.hooks.sound('rocket', 0.9);
+        this.hooks.sound('rocket', 0.9, u.x, u.y);
         break;
       }
       case 'emp': {
@@ -1675,7 +1786,7 @@ export class World {
           o.vy *= 0.1;
         }
         if (t.cls === 'fort') this.damage(t, dmg, 'emp', u, u.fid);
-        this.hooks.sound('laser', 0.8);
+        this.hooks.sound('laser', 0.8, u.x, u.y);
         break;
       }
       case 'mobile': {
@@ -1689,14 +1800,14 @@ export class World {
         if (t.cls === 'air') this.fire('bullet', mx, my, t, u, u.fid, dmg * 0.5, 20, 0xfff0a0, 'mobile', 16);
         else this.fire('shell', mx, my, t, u, u.fid, k === 0 ? dmg * 1.6 : dmg, 50, 0xffd28a, 'mobile', 14);
         u.flash = 0.6;
-        this.hooks.sound('cannon', k === 0 ? 0.8 : 0.5);
+        this.hooks.sound('cannon', k === 0 ? 0.8 : 0.5, u.x, u.y);
         break;
       }
       case 'carrier': {
         // point-defence guns along the deck
         const m = this.muzzle(u, rand(-60, 80), rand(-30, 30));
         this.fire('bullet', m.x, m.y, t, u, u.fid, dmg, t.cls === 'air' ? 20 : 0, f.color, 'carrier', 18);
-        if (u.salvo++ % 4 === 0) this.hooks.sound('flak', 0.3);
+        if (u.salvo++ % 4 === 0) this.hooks.sound('flak', 0.3, u.x, u.y);
         break;
       }
       case 'storm': {
@@ -1719,7 +1830,7 @@ export class World {
           x = nx.x;
           y = nx.y;
         }
-        this.hooks.sound('thunder', 0.7);
+        this.hooks.sound('thunder', 0.7, u.x, u.y);
         break;
       }
       case 'dragon': {
@@ -1731,9 +1842,10 @@ export class World {
         }
         const wet = this.weather === 'rain' || this.weather === 'storm' ? 0.7 : 1;
         this.splashAt(t.x, t.y, 45, dmg * wet, u.fid, true, 'dragon', u);
+        this.fireWeather(t.x, t.y, 1.6);
         if (t.cls === 'fort') this.damage(t, dmg * 1.5, 'dragon', u, u.fid);
         if (Math.random() < 0.08) this.stampDecal(this.fx.scorch, t.x + rand(-30, 30), t.y + rand(-30, 30), 0.6, 0.6);
-        if (u.salvo++ % 5 === 0) this.hooks.sound('flame', 0.7);
+        if (u.salvo++ % 5 === 0) this.hooks.sound('flame', 0.7, u.x, u.y);
         break;
       }
       default:
@@ -1750,7 +1862,7 @@ export class World {
         const m = this.muzzle(u, 18, -28 + i * 2);
         this.fire('rocket', m.x, m.y, t, u, u.fid, 40, 45, 0xffffff, 'rocket', 50);
       }
-      this.hooks.sound('rocket', 0.9);
+      this.hooks.sound('rocket', 0.9, u.x, u.y);
       return;
     }
     u.special = rand(3.5, 5);
@@ -1766,14 +1878,14 @@ export class World {
         this.stampDecal(this.fx.scorch, ex, ey, 1.2, 1);
       }
       this.hooks.shake(14);
-      this.hooks.sound('laser', 1);
-      this.hooks.sound('boom', 1);
+      this.hooks.sound('laser', 1, u.x, u.y);
+      this.hooks.sound('boom', 1, u.x, u.y);
     } else {
       for (let i = 0; i < 8; i++) {
         const m = this.muzzle(u, -40, rand(-30, 30));
         this.fire('rocket', m.x, m.y, t, u, u.fid, 60, 55, 0xffffff, 'rocket', 70);
       }
-      this.hooks.sound('rocket', 1);
+      this.hooks.sound('rocket', 1, u.x, u.y);
     }
   }
 
@@ -1793,6 +1905,10 @@ export class World {
       p.s.visible = false;
       this.impact(p);
       return;
+    }
+    if (p.whistle && d < p.speed * 0.9) {
+      p.whistle = false;
+      this.hooks.sound('whistle', 0.7, p.tx, p.ty);
     }
     p.x += (dx / d) * step;
     p.y += (dy / d) * step;
@@ -1814,20 +1930,35 @@ export class World {
         this.particles.flash(p.tx, p.ty, 0.5, 0xfff0a0, 0.12);
         this.particles.smokePuff(p.tx, p.ty, 0.35, 0x444444, 0.8, 0.6);
       } else this.particles.sparks(p.tx, p.ty, 2, p.tint, 160);
-      if (t?.alive && Math.hypot(t.x - p.tx, t.y - p.ty) < t.radius + 20) this.damage(t, p.dmg, p.w, p.owner, p.fid);
+      if (t?.alive && Math.hypot(t.x - p.tx, t.y - p.ty) < t.radius + 20) {
+        this.damage(t, p.dmg, p.w, p.owner, p.fid);
+        // rounds ringing off armour
+        if (t.cls === 'vehicle' || t.cls === 'mech' || t.cls === 'fort') {
+          const r = Math.random();
+          if (r < 0.12) this.hooks.sound('clang', 0.35, p.tx, p.ty);
+          else if (r < 0.17) {
+            this.hooks.sound('ricochet', 0.4, p.tx, p.ty);
+            this.particles.sparks(p.tx, p.ty, 3, 0xfff4c0, 320);
+          }
+        }
+      } else if (!p.air && Math.random() < 0.5) this.groundFx(p.tx, p.ty, 0.5);
       return;
     }
     this.particles.explode(p.tx, p.ty, p.kind === 'shell' ? 2 : 1);
+    if (!p.air) this.groundFx(p.tx, p.ty, p.kind === 'shell' ? 1.2 : 1);
     this.stampDecal(this.fx.scorch, p.tx, p.ty, 0.5, 0.8);
     if (t?.cls === 'fort' && t.alive) this.damage(t, p.dmg, p.w, p.owner, p.fid);
     else this.splashAt(p.tx, p.ty, p.splash, p.dmg, p.fid, p.kind === 'rocket', p.w, p.owner);
-    this.hooks.sound('boom', 0.3);
+    this.hooks.sound('boom', 0.3, p.tx, p.ty);
     this.hooks.shake(p.kind === 'shell' ? 3 : 2);
   }
 
   // ================================================================ render (every frame, interpolated)
   render(alpha: number, t: number) {
+    // weather on the armour: frost in a blizzard, wet sheen in rain, dust in a sandstorm, heat glow
+    const wt = ({ blizzard: 0xdfe9ff, rain: 0xd8e0ea, storm: 0xd0d8e6, sandstorm: 0xf0dcb8, heatwave: 0xfff0e0, fog: 0xe4e8ec } as Partial<Record<WeatherKey, number>>)[this.weather] ?? 0xffffff;
     for (const u of this.units) {
+      u.vis.root.tint = u.flash > 0 ? 0xffffff : wt;
       const x = lerp(u.px, u.x, alpha), y = lerp(u.py, u.y, alpha);
       u.vis.root.position.set(x, y);
       u.vis.update({ angle: u.angle, aim: u.aim, moving: u.moving, dist: u.dist, t: t + u.born, flash: u.flash });
