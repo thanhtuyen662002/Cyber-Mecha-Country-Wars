@@ -585,6 +585,248 @@ function mobileHull(): DrawFn {
   };
 }
 
+/** Scale + offset a flat point list. */
+const inset = (a: number[], k: number, cx = 0, cy = 0) => a.map((v, i) => (i % 2 ? cy + (v - cy) * k : cx + (v - cx) * k));
+
+function titanLeg(): DrawFn {
+  // armoured digitigrade foot: toe claws, ankle actuator, layered shin plates
+  return ({ b, p, g }) => {
+    for (const y of [-11, 0, 11]) {
+      b.poly([28, y - 4, 42, y - 2, 46, y, 42, y + 2, 28, y + 4]).fill(darkMetal()).stroke(OUT); // claws
+      b.rect(30, y - 1, 8, 2).fill(0x14181f);
+    }
+    const foot = [-24, -10, -15, -15, 26, -15, 33, -8, 33, 8, 26, 15, -15, 15, -24, 10];
+    plate(b, foot, inset(foot, 0.86, 3));
+    plate(b, [-12, -10, 12, -10, 19, -4.5, 19, 4.5, 12, 10, -12, 10, -15, 0], [-10, -8, 11, -8, 16.6, -3.6, 16.6, 3.6, 11, 8, -10, 8, -12.6, 0]);
+    b.moveTo(-10, -7.2).lineTo(11, -7.2).stroke(HI);
+    b.circle(0, 0, 7).fill(0x14181f).stroke(OUT);
+    b.circle(0, 0, 4.6).stroke({ width: 1.2, color: 0x4a5262 });
+    for (const s of [-1, 1]) b.rect(-20, s * 9 - 1.5, 6, 3).fill(0x14181f);
+    p.poly([8, -8, 13, -8, 13, 8, 8, 8]).fill(0xeeeeee);
+    p.poly([-21, -8.4, -17, -11.6, -17, 11.6, -21, 8.4]).fill(0xe0e0e0);
+    g.circle(0, 0, 2.8).fill(0xffffff);
+    g.rect(20, -1, 9, 2).fill(0xffffff);
+    for (const y of [-11, 0, 11]) g.rect(39, y - 0.5, 5, 1).fill(0xffffff);
+  };
+}
+
+function titanTorso(): DrawFn {
+  return ({ b, p, g }) => {
+    // back thruster packs
+    for (const s of [-1, 1]) {
+      const y0 = s > 0 ? 7 : -33;
+      plate(b, cham(-68, y0, 24, 26, 5), cham(-66, y0 + 2, 20, 22, 4));
+      for (let i = 0; i < 3; i++) b.rect(-66, y0 + 5 + i * 6.5, 7, 3).fill(0x0e1116);
+      b.circle(-70, y0 + 13, 4).fill(0x14181f).stroke(OUT);
+    }
+    // shoulder rail cannons
+    for (const s of [-1, 1]) {
+      plate(b, pts([4, 51, 72, 53, 80, 58, 72, 63, 4, 65], 1, s), pts([7, 53.4, 70.6, 55, 76.4, 58, 70.6, 61, 7, 62.6], 1, s));
+      for (const o of [-2.6, 1.2]) b.rect(26, s * 58 + o - 0.2, 46, 1.6).fill(0x14181f);
+      for (let x = 30; x < 70; x += 7) b.rect(x, s * 58 - 5, 1.6, 10).fill({ color: 0x14181f, alpha: 0.65 });
+      b.poly(cham(78, s * 58 - 5, 6, 10, 1.8)).fill(0x1b1f26).stroke(OUT);
+      plate(b, cham(12, s * 58 - 11, 16, 22, 3.5), cham(14, s * 58 - 9, 12, 18, 2.6));
+    }
+    // arm gatlings
+    for (const s of [-1, 1]) {
+      plate(b, cham(6, s * 36 - 8, 50, 16, 4), cham(8.4, s * 36 - 5.6, 45.2, 11.2, 3));
+      for (let i = -1; i <= 1; i++) b.rect(54, s * 36 + i * 3.4 - 1.1, 22, 2.2).fill(0x1b1f26).stroke({ width: 0.5, color: 0x0b0e13 });
+      b.circle(54, s * 36, 6.5).fill({ color: 0x14181f, alpha: 0.6 }).stroke({ width: 1.6, color: 0x4a5262 });
+      b.poly(cham(20, s * 36 - 4, 10, 8, 2)).fill(0x5a4a2a).stroke(EDGE); // ammo feed
+    }
+    // shoulder pads
+    const pad = [-34, -42, 20, -46, 36, -58, 34, -74, 22, -83, -16, -83, -38, -64];
+    plate(b, pad, inset(pad, 0.86, 0, -63));
+    plate(b, mirrorY(pad), mirrorY(inset(pad, 0.86, 0, -63)));
+    for (const s of [-1, 1]) b.moveTo(-14, s * 80).lineTo(20, s * 80).stroke(HI);
+    // chest
+    const chest = [-44, -36, -30, -47, 14, -49, 42, -30, 53, 0, 42, 30, 14, 49, -30, 47, -44, 36, -53, 0];
+    plate(b, chest, inset(chest, 0.9));
+    b.moveTo(-27, -42).lineTo(13, -44).stroke(HI);
+    b.moveTo(13, -44).lineTo(28, 0).lineTo(13, 44).stroke(PANEL);
+    b.moveTo(-24, -42).lineTo(-24, 42).stroke(PANEL);
+    for (const s of [-1, 1]) for (let i = 0; i < 4; i++) b.rect(-2 + i * 5, s * 34 - 1.5, 3, 3).fill(0x14181f); // vents
+    b.poly([24, -17, 49, -7, 49, 7, 24, 17, 29, 0]).fill(glass()).stroke(OUT); // visor
+    b.poly([27, -14, 40, -9, 39, -6.6, 28.6, -10]).fill({ color: 0xffffff, alpha: 0.2 });
+    b.poly(hexPts(-8, 0, 18)).fill(0x14181f).stroke(OUT); // reactor
+    b.poly(hexPts(-8, 0, 13)).stroke({ width: 2, color: 0x4a5262 });
+    // team paint
+    const pp = [-12, -52, 10, -52, 28, -62, 26, -74, -8, -76];
+    p.poly(pp).fill(0xeeeeee).stroke(PANEL);
+    p.poly(mirrorY(pp)).fill(0xeeeeee).stroke(PANEL);
+    p.poly([-48, -9, -32, -11, -32, 11, -48, 9]).fill(0xe0e0e0);
+    for (const s of [-1, 1]) p.poly(pts([16, 40, 36, 27, 31, 23.6, 14, 34], 1, s)).fill(0xeeeeee);
+    // neon
+    g.poly(hexPts(-8, 0, 8)).fill(0xffffff);
+    g.poly([27, -14, 47, -6, 47, 6, 27, 14]).stroke({ width: 1.5, color: 0xffffff });
+    g.moveTo(13, -44).lineTo(28, 0).lineTo(13, 44).stroke({ width: 1, color: 0xffffff, alpha: 0.7 });
+    for (const s of [-1, 1]) {
+      g.rect(28, s * 58 - 0.6, 46, 1.2).fill(0xffffff);
+      g.circle(-70, s > 0 ? 20 : -20, 2).fill(0xffffff);
+      g.poly(pts([22, -80, 34, -72, 34, -60], 1, s)).stroke({ width: 1.2, color: 0xffffff });
+      g.circle(54, s * 36, 2).fill(0xffffff);
+    }
+  };
+}
+
+function carrier(): DrawFn {
+  // airborne drone carrier: armoured hull, flight deck with launch lanes, command island, four lift nacelles
+  return ({ b, p, g }) => {
+    for (const [x, y] of [[-50, -46], [-50, 46], [40, -46], [40, 46]]) {
+      b.moveTo(x > 0 ? x - 16 : x + 16, y > 0 ? y - 14 : y + 14).lineTo(x > 0 ? 20 : -30, y > 0 ? 22 : -22).stroke({ width: 8, color: 0x0b0e13 });
+      b.moveTo(x > 0 ? x - 16 : x + 16, y > 0 ? y - 14 : y + 14).lineTo(x > 0 ? 20 : -30, y > 0 ? 22 : -22).stroke({ width: 5, color: 0x4a5262 });
+      b.circle(x, y, 21).fill(darkMetal()).stroke(OUT);
+      b.circle(x, y, 16).fill(0x0e1116).stroke(EDGE);
+      for (let k = -12; k <= 12; k += 4) b.rect(x + k - 0.5, y - 14, 1, 28).fill({ color: 0x2c313a, alpha: 0.8 });
+    }
+    const hull = [-92, -26, -81, -37, 70, -37, 101, -16, 110, 0, 101, 16, 70, 37, -81, 37, -92, 26];
+    plate(b, hull, inset(hull, 0.92, 5));
+    b.poly([-80, -24, 70, -24, 87, -10, 87, 10, 70, 24, -80, 24]).fill(0x1d222b).stroke(OUT); // flight deck
+    for (const s of [-1, 1]) for (let x = -72; x < 70; x += 12) b.rect(x, s * 11 - 1, 7, 2).fill(0x8d98ab);
+    b.moveTo(-80, 0).lineTo(80, 0).stroke({ width: 0.8, color: 0x8d98ab, alpha: 0.5 });
+    plate(b, cham(-22, -38, 44, 12, 3), cham(-20, -36.4, 40, 8.8, 2.4)); // command island
+    b.poly([2, -35.6, 18, -35.6, 20, -29, 2, -29]).fill(glass()).stroke(EDGE);
+    b.circle(-14, -32, 3).fill(0x14181f).stroke(EDGE); // radar dome
+    for (let i = 0; i < 4; i++) b.poly(cham(-70 + i * 16, -7, 10, 14, 2)).fill(0x0e1116).stroke(EDGE); // drone bays
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) b.circle(30 + i * 14, s * 30, 3).fill(0x14181f).stroke(EDGE); // point-defence turrets
+    b.moveTo(-80, -34.6).lineTo(69, -34.6).stroke(HI);
+    p.poly([88, -10, 100, -15, 107, 0, 100, 15, 88, 10]).fill(0xeeeeee).stroke(PANEL);
+    p.poly([-88, -23.6, -80, -32, -76, -32, -76, 32, -80, 32, -88, 23.6]).fill(0xe6e6e6);
+    for (const s of [-1, 1]) for (let x = -72; x < 70; x += 12) g.rect(x, s * 11 - 0.5, 7, 1).fill(0xffffff);
+    for (let i = 0; i < 4; i++) g.rect(-67 + i * 16, -1, 4, 2).fill(0xffffff);
+    for (const [x, y] of [[-50, -46], [-50, 46], [40, -46], [40, 46]]) g.circle(x, y, 21).stroke({ width: 1.2, color: 0xffffff, alpha: 0.7 });
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) g.circle(30 + i * 14, s * 30, 1).fill(0xffffff);
+    g.circle(108, 0, 2.5).fill(0xffffff);
+  };
+}
+
+function stormBase(): DrawFn {
+  // walking tesla fortress: octagon hull on four armoured feet, capacitor ring
+  return ({ b, p, g }) => {
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      const x = Math.cos(a) * 48, y = Math.sin(a) * 48;
+      plate(b, cham(x - 13, y - 13, 26, 26, 6), cham(x - 10.4, y - 10.4, 20.8, 20.8, 4.6));
+      b.circle(x, y, 4.5).fill(0x14181f).stroke(EDGE);
+      g.circle(x, y, 2.6).fill(0xffffff);
+    }
+    const oct: number[] = [];
+    for (let i = 0; i < 8; i++) oct.push(Math.cos((i / 8) * Math.PI * 2 + Math.PI / 8) * 47, Math.sin((i / 8) * Math.PI * 2 + Math.PI / 8) * 47);
+    plate(b, oct, inset(oct, 0.9));
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      b.moveTo(Math.cos(a) * 33, Math.sin(a) * 33).lineTo(Math.cos(a) * 42, Math.sin(a) * 42).stroke(PANEL);
+    }
+    b.circle(0, 0, 32).fill(0x1b1f26).stroke(OUT);
+    b.circle(0, 0, 29).stroke({ width: 1, color: 0x4a5262 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      b.poly(cham(Math.cos(a) * 38 - 3.5, Math.sin(a) * 38 - 3.5, 7, 7, 1.8)).fill(0x14181f).stroke(EDGE);
+      p.poly(cham(Math.cos(a) * 38 - 2, Math.sin(a) * 38 - 2, 4, 4, 1)).fill(0xeeeeee);
+    }
+    b.moveTo(-30, -36).lineTo(14, -44).stroke(HI);
+    g.poly(oct).stroke({ width: 1.4, color: 0xffffff, alpha: 0.7 });
+    g.circle(0, 0, 32).stroke({ width: 1.4, color: 0xffffff, alpha: 0.6 });
+  };
+}
+
+function stormSpire(): DrawFn {
+  // tesla spire from above: toroid rings over spoked frame, glowing core
+  return ({ b, p, g }) => {
+    b.circle(0, 0, 27).fill(darkMetal()).stroke(OUT);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      b.moveTo(Math.cos(a) * 8, Math.sin(a) * 8).lineTo(Math.cos(a) * 26, Math.sin(a) * 26).stroke({ width: 2.4, color: 0x14181f });
+      b.circle(Math.cos(a) * 24, Math.sin(a) * 24, 2.4).fill(0x2a303b).stroke(EDGE);
+    }
+    for (const r of [20, 13.5]) {
+      b.circle(0, 0, r).stroke({ width: 4, color: 0x0b0e13 });
+      b.circle(0, 0, r).stroke({ width: 2.6, color: 0x8d98ab });
+    }
+    b.circle(0, 0, 7.5).fill(0x14181f).stroke(OUT);
+    p.circle(0, 0, 5.5).fill(0xeeeeee);
+    g.circle(0, 0, 6).fill(0xffffff);
+    for (const r of [20, 13.5]) g.circle(0, 0, r).stroke({ width: 1, color: 0xffffff, alpha: 0.8 });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      g.circle(Math.cos(a) * 24, Math.sin(a) * 24, 1.1).fill(0xffffff);
+    }
+  };
+}
+
+function satellite(): DrawFn {
+  // orbital cannon satellite (portrait / cut-in only)
+  return ({ b, p, g }) => {
+    for (const s of [-1, 1]) {
+      const y0 = s > 0 ? 18 : -60;
+      b.rect(-3, s > 0 ? 9 : -18, 6, 9).fill(0x4a5262).stroke(EDGE); // booms
+      b.poly(cham(-24, y0, 48, 42, 3)).fill(0x0f1a30).stroke(OUT); // solar wings
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) b.rect(-22 + i * 11.6, y0 + 2 + j * 13.2, 10.4, 12).fill(0x1a2f55).stroke({ width: 0.6, color: 0x3a5a8a });
+    }
+    b.poly([12, -7, 48, -5, 54, 0, 48, 5, 12, 7]).fill(darkMetal()).stroke(OUT); // cannon
+    for (let i = 0; i < 3; i++) {
+      b.circle(24 + i * 8.5, 0, 6).stroke({ width: 3, color: 0x0b0e13 });
+      b.circle(24 + i * 8.5, 0, 6).stroke({ width: 1.8, color: 0x8d98ab });
+    }
+    plate(b, hexPts(0, 0, 17), hexPts(0, 0, 14));
+    b.poly(hexPts(0, 0, 8)).fill(0x14181f).stroke(EDGE);
+    p.poly([-12, -7, -7, -12, -7, 12, -12, 7]).fill(0xeeeeee);
+    g.circle(0, 0, 4).fill(0xffffff);
+    g.rect(14, -0.8, 38, 1.6).fill(0xffffff);
+    for (let i = 0; i < 3; i++) g.circle(24 + i * 8.5, 0, 6).stroke({ width: 0.8, color: 0xffffff });
+    for (const s of [-1, 1]) g.rect(-24, s > 0 ? 59 : -61, 48, 1.4).fill({ color: 0xffffff, alpha: 0.7 });
+  };
+}
+
+function dragonHead(): DrawFn {
+  // mecha dragon head: swept horns, armoured snout, toothed jaw, plasma furnace mouth
+  return ({ b, p, g }) => {
+    for (const s of [-1, 1]) {
+      b.poly(pts([-12, 7, -34, 24, -30, 16, -20, 6], 1, s)).fill(darkMetal()).stroke(OUT); // horns
+      b.poly(pts([-4, 12, -18, 22, -12, 12], 1, s)).fill(0x3a414d).stroke(EDGE);
+    }
+    const head = [-17, -14, 6, -17, 26, -10, 42, -5, 44, 0, 42, 5, 26, 10, 6, 17, -17, 14, -23, 0];
+    plate(b, head, inset(head, 0.86, 8));
+    b.poly([24, -6.5, 46, -3.5, 49, 0, 46, 3.5, 24, 6.5]).fill(0x14181f).stroke(OUT); // jaw
+    for (let i = 0; i < 5; i++) for (const s of [-1, 1]) b.poly(pts([28 + i * 3.6, 5.6, 29.8 + i * 3.6, 2.6, 31.6 + i * 3.6, 5.6], 1, s)).fill(0xc8d2e0);
+    b.moveTo(-14, -11).lineTo(24, -8).stroke(HI);
+    b.moveTo(6, -14).lineTo(10, 0).lineTo(6, 14).stroke(PANEL);
+    for (const s of [-1, 1]) b.poly(pts([10, 6, 21, 7.4, 19, 3.6, 11, 3], 1, s)).fill(0x14181f).stroke(EDGE); // eye sockets
+    p.poly([-12, -11, 2, -13, 2, 13, -12, 11, -16, 0]).fill(0xeeeeee).stroke(PANEL);
+    for (const s of [-1, 1]) g.poly(pts([12, 5.4, 20, 6.4, 18.6, 4.2, 12.4, 4], 1, s)).fill(0xffffff); // eyes
+    g.poly([26, -2, 46, -1, 46, 1, 26, 2]).fill(0xffffff);
+  };
+}
+
+function dragonSeg(): DrawFn {
+  return ({ b, p, g }) => {
+    for (const s of [-1, 1]) b.poly(pts([-9, 16, 9, 16, 5, 25, -5, 25], 1, s)).fill(darkMetal()).stroke(OUT); // side fins
+    plate(b, hexPts(0, 0, 17.5), hexPts(0, 0, 14.5));
+    b.poly(hexPts(0, 0, 9)).fill(0x14181f).stroke(OUT);
+    b.moveTo(-8, -12).lineTo(6, -12).stroke(HI);
+    p.poly([-13, -8, -8, -12.4, -8, 12.4, -13, 8]).fill(0xeeeeee);
+    g.poly(hexPts(0, 0, 4.5)).fill(0xffffff);
+    g.poly(hexPts(0, 0, 17.5)).stroke({ width: 0.8, color: 0xffffff, alpha: 0.5 });
+  };
+}
+
+function dragonWing(): DrawFn {
+  // origin at the shoulder, wing spreads toward -Y: armoured spars with energy membranes between
+  return ({ b, p, g }) => {
+    const tips: [number, number][] = [[-4, -74], [-20, -64], [-27, -44], [-30, -24]];
+    b.poly([0, 0, 14, -8, 10, -40, -4, -74, -20, -64, -27, -44, -30, -24, -18, -8]).fill({ color: 0x1a2030, alpha: 0.85 }).stroke(OUT);
+    for (const [x, y] of tips) {
+      b.moveTo(4, -4).lineTo(x, y).stroke({ width: 4.4, color: 0x0b0e13 });
+      b.moveTo(4, -4).lineTo(x, y).stroke({ width: 2.8, color: 0x6d7688 });
+      b.circle(x, y, 2.2).fill(0x2a303b).stroke(EDGE);
+    }
+    plate(b, [0, 0, 14, -8, 12, -40, 2, -52, -2, -12], [2, -3, 11.4, -8.6, 10, -38, 3, -46, 0, -12]); // leading-edge armour
+    p.poly([5, -10, 9.6, -36, 4.6, -42, 2, -14]).fill(0xeeeeee);
+    for (const [x, y] of tips) g.moveTo(4, -4).lineTo(x, y).stroke({ width: 0.8, color: 0xffffff, alpha: 0.7 });
+    for (const [x, y] of tips) g.circle(x, y, 1.2).fill(0xffffff);
+  };
+}
+
 function jeepGun(): DrawFn {
   // ring-mounted rotary machine gun with ammo drum and angled shield
   return ({ b, p, g }) => {
@@ -754,73 +996,7 @@ function rotorDisc(): DrawFn {
   };
 }
 
-function titanLeg(): DrawFn {
-  // armoured digitigrade foot with a glowing ankle actuator
-  return ({ b, p, g }) => {
-    b.poly([-22, -10, -14, -14, 26, -14, 32, -8, 32, 8, 26, 14, -14, 14, -22, 10]).fill(darkMetal()).stroke(EDGE);
-    for (const y of [-11, 0, 11]) b.poly([30, y - 3.5, 42, y - 1.5, 42, y + 1.5, 30, y + 3.5]).fill(0x2a303b).stroke(EDGE); // claws
-    b.poly([-10, -9, 12, -9, 18, -4, 18, 4, 12, 9, -10, 9]).fill(metal()).stroke(EDGE);
-    b.moveTo(-9, -8).lineTo(11, -8).stroke(HI);
-    b.circle(0, 0, 6.5).fill(0x1d222b).stroke(EDGE);
-    p.poly([8, -9, 13, -9, 13, 9, 8, 9]).fill(0xeeeeee);
-    p.poly([-20, -9, -16, -12, -16, 12, -20, 9]).fill(0xe0e0e0);
-    g.circle(0, 0, 3).fill(0xffffff);
-    g.rect(20, -1, 10, 2).fill(0xffffff);
-    for (const y of [-11, 0, 11]) g.rect(36, y - 0.5, 5, 1).fill(0xffffff);
-  };
-}
 
-function titanTorso(): DrawFn {
-  return ({ b, p, g }) => {
-    // back thrusters
-    for (const s of [-1, 1]) {
-      b.poly(cham(-66, s > 0 ? 8 : -32, 22, 24, 5)).fill(0x2a303b).stroke(EDGE);
-      for (let i = 0; i < 3; i++) b.rect(-64, (s > 0 ? 12 : -28) + i * 6, 6, 3).fill(0x0e1116);
-    }
-    // shoulder rail cannons
-    for (const s of [-1, 1]) {
-      b.poly([4, s * 58 - 7, 72, s * 58 - 5, 78, s * 58, 72, s * 58 + 5, 4, s * 58 + 7]).fill(darkMetal()).stroke(EDGE);
-      b.rect(24, s * 58 - 2.5, 50, 1.6).fill(0x1b1f26);
-      b.rect(24, s * 58 + 1, 50, 1.6).fill(0x1b1f26);
-      b.poly(cham(14, s * 58 - 10, 14, 20, 3)).fill(0x3a414d).stroke(EDGE);
-    }
-    // arm gatlings
-    for (const s of [-1, 1]) {
-      b.poly(cham(8, s * 36 - 7, 48, 14, 4)).fill(0x2a303b).stroke(EDGE);
-      for (let i = -1; i <= 1; i++) b.rect(52, s * 36 + i * 3.4 - 1, 20, 2).fill(0x1b1f26);
-      b.circle(52, s * 36, 6).stroke({ width: 1.5, color: 0x4a5262 });
-    }
-    // shoulder pads (angular)
-    const pad = [-34, -42, 20, -46, 36, -58, 34, -74, 22, -82, -16, -82, -38, -64];
-    b.poly(pad).fill(metal()).stroke(EDGE);
-    b.poly(mirrorY(pad)).fill(metal()).stroke(EDGE);
-    // chest
-    const chest = [-44, -36, -30, -46, 14, -48, 42, -30, 52, 0, 42, 30, 14, 48, -30, 46, -44, 36, -52, 0];
-    b.poly(chest).fill(metal()).stroke({ width: 1.8, color: 0x10141a });
-    b.moveTo(-30, -45).lineTo(14, -47).stroke(HI);
-    b.moveTo(14, -48).lineTo(30, 0).lineTo(14, 48).stroke(PANEL);
-    b.moveTo(-24, -44).lineTo(-24, 44).stroke(PANEL);
-    b.poly([26, -16, 48, -7, 48, 7, 26, 16, 30, 0]).fill(glass()).stroke(EDGE); // visor
-    b.poly(hexPts(-8, 0, 17)).fill(0x1d222b).stroke(EDGE); // reactor
-    b.poly(hexPts(-8, 0, 12)).stroke({ width: 2, color: 0x4a5262 });
-    // team paint
-    p.poly([-12, -52, 10, -52, 28, -62, 26, -74, -8, -76]).fill(0xeeeeee).stroke(PANEL);
-    p.poly(mirrorY([-12, -52, 10, -52, 28, -62, 26, -74, -8, -76])).fill(0xeeeeee).stroke(PANEL);
-    p.poly([-50, -8, -32, -10, -32, 10, -50, 8]).fill(0xe0e0e0);
-    p.poly([16, -42, 38, -28, 32, -24, 14, -36]).fill(0xeeeeee);
-    p.poly([16, 42, 38, 28, 32, 24, 14, 36]).fill(0xeeeeee);
-    // neon
-    g.poly(hexPts(-8, 0, 8)).fill(0xffffff);
-    g.poly([28, -13, 46, -6, 46, 6, 28, 13]).stroke({ width: 1.5, color: 0xffffff });
-    g.moveTo(14, -48).lineTo(30, 0).lineTo(14, 48).stroke({ width: 1, color: 0xffffff, alpha: 0.7 });
-    for (const s of [-1, 1]) {
-      g.rect(28, s * 58 - 0.6, 46, 1.2).fill(0xffffff);
-      g.rect(-64, s * 20 - 6, 3, 12).fill(0xffffff);
-      g.poly(pts([22, -80, 34, -72, 34, -60])).stroke({ width: 1.2, color: 0xffffff });
-      g.circle(52, s * 36, 2).fill(0xffffff);
-    }
-  };
-}
 
 function fortress(): DrawFn {
   const hex = (r: number) => {
@@ -960,68 +1136,8 @@ function hullTracks(len: number, wid: number): DrawFn {
 }
 
 
-function carrier(): DrawFn {
-  // airborne drone carrier: long deck with launch lanes, four lift engines
-  return ({ b, p, g }) => {
-    for (const [x, y] of [[-50, -46], [-50, 46], [40, -46], [40, 46]]) {
-      b.circle(x, y, 20).fill(0x2a303b).stroke(EDGE);
-      b.circle(x, y, 15).fill(0x0e1116);
-      b.moveTo(x - 15, y).lineTo(x + 15, y).moveTo(x, y - 15).lineTo(x, y + 15).stroke({ width: 2, color: 0x3a414d });
-      b.moveTo(x > 0 ? x - 18 : x + 18, y > 0 ? y - 16 : y + 16).lineTo(x > 0 ? 20 : -30, y > 0 ? 20 : -20).stroke({ width: 5, color: 0x3a414d });
-    }
-    b.poly([-90, -26, -80, -36, 70, -36, 100, -16, 108, 0, 100, 16, 70, 36, -80, 36, -90, 26]).fill(metal()).stroke({ width: 2, color: 0x10141a });
-    b.poly([-80, -24, 70, -24, 86, -10, 86, 10, 70, 24, -80, 24]).fill(0x2a303b).stroke(EDGE); // flight deck
-    for (const s of [-1, 1]) for (let x = -72; x < 70; x += 12) b.rect(x, s * 11 - 1, 7, 2).fill(0xc8d2e0);
-    b.poly(cham(-20, -36, 40, 10, 3)).fill(darkMetal()).stroke(EDGE); // island / bridge
-    b.poly([0, -34, 16, -34, 18, -28, 0, -28]).fill(glass());
-    for (let i = 0; i < 4; i++) b.poly(cham(-70 + i * 16, -7, 10, 14, 2)).fill(0x1d222b).stroke(EDGE); // drone bays
-    b.moveTo(-80, -35).lineTo(69, -35).stroke(HI);
-    p.poly([86, -10, 100, -16, 108, 0, 100, 16, 86, 10]).fill(0xeeeeee).stroke(PANEL);
-    p.poly([-90, -26, -80, -36, -80, 36, -90, 26]).fill(0xe6e6e6);
-    for (const s of [-1, 1]) for (let x = -72; x < 70; x += 12) g.rect(x, s * 11 - 0.5, 7, 1).fill(0xffffff);
-    for (let i = 0; i < 4; i++) g.rect(-67 + i * 16, -1, 4, 2).fill(0xffffff);
-    for (const [x, y] of [[-50, -46], [-50, 46], [40, -46], [40, 46]]) g.circle(x, y, 20).stroke({ width: 1.2, color: 0xffffff, alpha: 0.7 });
-    g.circle(106, 0, 2.5).fill(0xffffff);
-  };
-}
 
-function stormBase(): DrawFn {
-  // walking weather station: octagon hull on four stub legs
-  return ({ b, p, g }) => {
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      const x = Math.cos(a) * 46, y = Math.sin(a) * 46;
-      b.poly(cham(x - 12, y - 12, 24, 24, 6)).fill(darkMetal()).stroke(EDGE);
-      g.circle(x, y, 3).fill(0xffffff);
-    }
-    const oct: number[] = [];
-    for (let i = 0; i < 8; i++) oct.push(Math.cos((i / 8) * Math.PI * 2 + Math.PI / 8) * 46, Math.sin((i / 8) * Math.PI * 2 + Math.PI / 8) * 46);
-    b.poly(oct).fill(metal()).stroke({ width: 2, color: 0x10141a });
-    b.circle(0, 0, 32).fill(0x2a303b).stroke(EDGE);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      b.poly(cham(Math.cos(a) * 38 - 3, Math.sin(a) * 38 - 3, 6, 6, 1.5)).fill(0x1d222b);
-      p.poly(cham(Math.cos(a) * 38 - 2, Math.sin(a) * 38 - 2, 4, 4, 1)).fill(0xeeeeee);
-    }
-    g.poly(oct).stroke({ width: 1.4, color: 0xffffff, alpha: 0.7 });
-    g.circle(0, 0, 32).stroke({ width: 1.4, color: 0xffffff, alpha: 0.6 });
-  };
-}
 
-function stormSpire(): DrawFn {
-  // tesla spire seen from above: stacked rings around a glowing core
-  return ({ b, p, g }) => {
-    b.circle(0, 0, 26).fill(darkMetal()).stroke(EDGE);
-    for (const r of [20, 14]) b.circle(0, 0, r).stroke({ width: 3, color: 0x8d98ab });
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      b.moveTo(Math.cos(a) * 8, Math.sin(a) * 8).lineTo(Math.cos(a) * 26, Math.sin(a) * 26).stroke({ width: 2, color: 0x2a303b });
-    }
-    p.circle(0, 0, 7).fill(0xeeeeee);
-    g.circle(0, 0, 7).fill(0xffffff);
-    for (const r of [20, 14]) g.circle(0, 0, r).stroke({ width: 1, color: 0xffffff, alpha: 0.8 });
-  };
-}
 
 function depot(): DrawFn {
   // cluster of explosive fuel drums (industrial terrain hazard)
@@ -1037,58 +1153,9 @@ function depot(): DrawFn {
   };
 }
 
-function satellite(): DrawFn {
-  // orbital cannon satellite (portrait / cut-in only)
-  return ({ b, p, g }) => {
-    for (const s of [-1, 1]) {
-      b.poly(cham(-22, s > 0 ? 16 : -58, 44, 42, 3)).fill(0x1a2a4a).stroke(EDGE); // solar wings
-      for (let i = 1; i < 4; i++) b.moveTo(-22 + i * 11, s > 0 ? 16 : -58).lineTo(-22 + i * 11, s > 0 ? 58 : -16).stroke({ width: 0.8, color: 0x3a5a8a });
-      b.rect(-2, s > 0 ? 8 : -16, 4, 8).fill(0x5a6477);
-    }
-    b.poly(hexPts(0, 0, 16)).fill(metal()).stroke({ width: 1.5, color: 0x10141a });
-    b.poly([12, -6, 44, -4, 48, 0, 44, 4, 12, 6]).fill(darkMetal()).stroke(EDGE); // cannon
-    for (let i = 0; i < 3; i++) b.circle(22 + i * 8, 0, 5).stroke({ width: 1.6, color: 0x8d98ab });
-    p.poly(hexPts(0, 0, 9)).fill(0xeeeeee);
-    g.circle(0, 0, 4).fill(0xffffff);
-    g.rect(14, -0.8, 34, 1.6).fill(0xffffff);
-    for (let i = 0; i < 3; i++) g.circle(22 + i * 8, 0, 5).stroke({ width: 0.8, color: 0xffffff });
-  };
-}
 
-function dragonHead(): DrawFn {
-  return ({ b, p, g }) => {
-    for (const s of [-1, 1]) b.poly([-14, s * 8, -30, s * 22, -22, s * 10]).fill(darkMetal()).stroke(EDGE); // horns
-    b.poly([-16, -14, 6, -16, 26, -9, 40, -4, 40, 4, 26, 9, 6, 16, -16, 14, -22, 0]).fill(metal()).stroke({ width: 1.5, color: 0x10141a });
-    b.poly([24, -6, 44, -3, 46, 0, 44, 3, 24, 6]).fill(0x1d222b).stroke(EDGE); // jaw
-    for (let i = 0; i < 4; i++) b.poly([28 + i * 4, -6, 30 + i * 4, -3, 32 + i * 4, -6]).fill(0xc8d2e0);
-    b.moveTo(-14, -13).lineTo(24, -9).stroke(HI);
-    p.poly([-10, -12, 4, -13, 4, 13, -10, 12]).fill(0xeeeeee).stroke(PANEL);
-    for (const s of [-1, 1]) g.poly([12, s * 7, 20, s * 8, 18, s * 5]).fill(0xffffff); // eyes
-    g.poly([26, -2, 44, -1, 44, 1, 26, 2]).fill(0xffffff); // furnace mouth
-  };
-}
 
-function dragonSeg(): DrawFn {
-  return ({ b, p, g }) => {
-    b.poly(hexPts(0, 0, 17)).fill(metal()).stroke({ width: 1.4, color: 0x10141a });
-    b.poly([-8, -18, 8, -18, 4, -24, -4, -24]).fill(darkMetal()).stroke(EDGE); // dorsal fin (side)
-    b.poly([-8, 18, 8, 18, 4, 24, -4, 24]).fill(darkMetal()).stroke(EDGE);
-    b.poly(hexPts(0, 0, 9)).fill(0x1d222b).stroke(EDGE);
-    p.poly([-12, -10, -6, -14, -6, 14, -12, 10]).fill(0xeeeeee);
-    g.poly(hexPts(0, 0, 4.5)).fill(0xffffff);
-    g.poly(hexPts(0, 0, 17)).stroke({ width: 0.8, color: 0xffffff, alpha: 0.5 });
-  };
-}
 
-function dragonWing(): DrawFn {
-  // origin at the shoulder, wing spreads toward -Y
-  return ({ b, p, g }) => {
-    b.poly([0, 0, 14, -8, 10, -40, -6, -72, -22, -60, -26, -40, -30, -22, -18, -8]).fill({ color: 0x2a303b, alpha: 0.95 }).stroke({ width: 1.4, color: 0x10141a });
-    for (const [x, y] of [[-6, -72], [-22, -60], [-26, -40], [-30, -22]]) b.moveTo(4, -4).lineTo(x, y).stroke({ width: 2.4, color: 0x5a6477 });
-    p.poly([4, -6, 10, -40, 2, -50, -2, -12]).fill(0xeeeeee);
-    for (const [x, y] of [[-6, -72], [-22, -60], [-26, -40], [-30, -22]]) g.moveTo(4, -4).lineTo(x, y).stroke({ width: 0.8, color: 0xffffff, alpha: 0.7 });
-  };
-}
 
 // ---------------------------------------------------------------- public
 
@@ -1157,8 +1224,8 @@ export function makeUnitArt(renderer: Renderer): UnitArt {
     heliBody: part(116, heliBody(), 4),
     heliRotor: part(116, heliRotor()),
     rotorDisc: part(116, rotorDisc()),
-    titanLeg: part(96, titanLeg(), 5),
-    titanTorso: part(200, titanTorso(), 7),
+    titanLeg: part(100, titanLeg(), 5),
+    titanTorso: part(204, titanTorso(), 7),
     fortress: part(300, fortress(), 8),
     sniper: part(100, sniper(), 3),
     atSoldier: part(68, atSoldier(), 3),
@@ -1184,13 +1251,13 @@ export function makeUnitArt(renderer: Renderer): UnitArt {
     hoverBody: part(132, hoverBody(), 5),
     mobileTracks: part(176, hullTracks(140, 100)),
     mobileHull: part(184, mobileHull(), 6),
-    carrier: part(240, carrier(), 7),
-    stormBase: part(150, stormBase(), 6),
+    carrier: part(244, carrier(), 7),
+    stormBase: part(156, stormBase(), 6),
     stormSpire: part(64, stormSpire(), 6),
-    satellite: part(128, satellite(), 5),
+    satellite: part(132, satellite(), 5),
     depot: part(56, depot(), 3),
-    dragonHead: part(100, dragonHead(), 5),
-    dragonSeg: part(56, dragonSeg(), 4),
+    dragonHead: part(104, dragonHead(), 5),
+    dragonSeg: part(60, dragonSeg(), 4),
     dragonWing: part(160, dragonWing(), 5),
   };
 }

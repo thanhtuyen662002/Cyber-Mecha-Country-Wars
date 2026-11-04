@@ -539,8 +539,8 @@ export function buildVisual(key: UnitKey, color: number, art: UnitArt, fx: FxTex
         wings.forEach((w, i) => {
           w.c.position.copyFrom(w1.position);
           w.c.rotation = w1.rotation;
-          w.c.scale.x = 1;
-          w.c.scale.y = (i ? -1 : 1) * (0.8 + wave * 0.25);
+          w.c.scale.x = 1.2;
+          w.c.scale.y = (i ? -1 : 1) * (1.1 + wave * 0.25);
         });
         head.glow.alpha = 0.8 + st.flash;
         sh.rotation = st.angle;
