@@ -389,6 +389,13 @@ async function main() {
       app.render();
     },
     render: () => app.render(),
+    /** Render one unit's spec sheet to a PNG data URL. */
+    poster: async (key: UnitKey) => {
+      const p = hud.poster(key);
+      const url = await app.renderer.extract.base64({ target: p.root, frame: new Rectangle(0, 0, 1080, 1350), resolution: 1 });
+      p.destroy();
+      return url;
+    },
   };
 }
 
