@@ -235,6 +235,7 @@ async function main() {
   };
 
   game.onFeed = (t, code, color) => hud.pushFeed(t, code, color);
+  game.onAlert = (title, sub, color, code) => (hud.alert(title, sub, color, code), sfx.play('alarm', 0.6));
   game.onTerrain = (k) => setTerrain(k);
   game.onWeather = (k) => setWeather(k);
   game.onRoundEnd = (s) => {

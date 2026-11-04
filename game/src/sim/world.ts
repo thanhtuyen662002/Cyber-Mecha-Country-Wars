@@ -53,6 +53,14 @@ export interface Faction {
   units: number; // alive count, refreshed each tick
   cls: Record<UnitClass, number>; // alive count per class (for auto-counter picks)
   hurtBy: Record<UnitClass, number>; // decaying damage taken per attacker class (for "call AA!" tips)
+  /** score multiplier for this country (underdog boost) */
+  boost: number;
+  /** seconds of underdog fortress shield left (fort takes 50% damage) */
+  shieldT: number;
+  /** coins gifted to this country this round (shared war chest) */
+  chest: number;
+  /** war-chest goals already reached this round */
+  chestStage: number;
 }
 
 export interface Unit extends Target {
@@ -164,6 +172,8 @@ export class World {
   weather: WeatherKey = 'clear';
   wind = 0;
   time = 0;
+  /** damage dealt to the current raid boss, per faction id */
+  readonly bossDmg = new Map<number, number>();
   /** score multiplier (2 during the final assault) */
   mult = 1;
   hooks!: WorldHooks;
@@ -219,6 +229,7 @@ export class World {
     const f: Faction = {
       id: this.factions.length, def, code: def.code, color: def.color, slot: -1, fort: null, lastActive: this.time,
       score: 0, kills: 0, fortsDestroyed: 0, units: 0, cls: { inf: 0, vehicle: 0, mech: 0, air: 0 }, hurtBy: { inf: 0, vehicle: 0, mech: 0, air: 0 },
+      boost: 1, shieldT: 0, chest: 0, chestStage: 0,
     };
     this.factions.push(f);
     this.byCode.set(def.code, f);
@@ -354,7 +365,8 @@ export class World {
     this.clearDecals();
     this.terrain = terrain;
     for (const f of this.factions) {
-      f.score = f.kills = f.fortsDestroyed = 0;
+      f.score = f.kills = f.fortsDestroyed = f.chest = f.chestStage = f.shieldT = 0;
+      f.boost = 1;
       this.removeFort(f);
       if (f.slot >= 0 && this.time - f.lastActive > keepActiveWithin && this.slotted.length > 4) f.slot = -1;
     }
@@ -445,7 +457,7 @@ export class World {
       c.label.tint = c.owner >= 0 ? colorOf(c.owner) : 0xffffff;
       if (c.owner >= 0) {
         const f = this.factions[c.owner];
-        f.score += 2 * 0.25 * this.mult;
+        f.score += 2 * 0.25 * this.mult * f.boost;
         if (c.kind === 'depot') for (const u of this.near(c.x, c.y, 260)) if (u.fid === c.owner && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02);
       }
     }
@@ -588,7 +600,7 @@ export class World {
     if (def.tier >= 3) this.particles.sparks(x, y, 20, f.color, 300);
     if (def.tier >= 4) this.stampDecal(this.fx.scorch, x, y, 1.2, 0.5);
     this.units.push(u);
-    if (def.tier >= 4) this.hooks.cinematic(u, def.tier, def.key, name || f.def.name, def.name, f);
+    if (def.tier >= 4 && uid !== 'boss') this.hooks.cinematic(u, def.tier, def.key, name || f.def.name, def.name, f);
     if (key === 'titan') this.hooks.sound('alarm');
     return u;
   }
@@ -1052,9 +1064,10 @@ export class World {
     if (t.cls === 'fort') {
       const fort = t as Fort;
       if (attacker && !attacker.uid) d *= 0.5; // CPU reinforcements chip forts slowly; viewers' units hit full
+      if (this.factions[fort.fid].shieldT > 0) d *= 0.5; // underdog shield
       fort.hitFlash = 1;
       const f = this.factions[fid];
-      f.score += d * 0.1 * this.mult;
+      f.score += d * 0.1 * this.mult * f.boost;
       fort.hp -= d;
       this.addHeat(t.x, t.y, d * 0.02);
       if (fort.hp <= 0) this.destroyFort(fort, fid);
@@ -1065,6 +1078,7 @@ export class World {
     if (u.def.key === 'strike') return;
     u.hp -= d;
     u.flash = 1;
+    if (u.uid === 'boss' && fid > 0) this.bossDmg.set(fid, (this.bossDmg.get(fid) ?? 0) + Math.min(d, u.hp + d));
     if (attacker) this.factions[u.fid].hurtBy[attacker.cls] += d;
     this.addHeat(u.x, u.y, d * 0.01);
     if (u.hp <= 0) this.kill(u, attacker, fid);
@@ -1115,7 +1129,7 @@ export class World {
     t.hp = 0;
     const victim = this.factions[t.fid];
     const by = this.factions[byFid];
-    by.score += 500 * this.mult;
+    by.score += 500 * this.mult * by.boost;
     by.fortsDestroyed++;
     this.megaBoom(t.x, t.y);
     t.view.body.alpha = 0.25;
@@ -1127,7 +1141,7 @@ export class World {
     const tier = u.def.tier;
     const kf = this.factions[killerFid];
     if (kf) {
-      kf.score += u.def.value * this.mult;
+      kf.score += u.def.value * this.mult * kf.boost;
       kf.kills++;
     }
     if (killer) {
@@ -1318,7 +1332,7 @@ export class World {
     }
     for (const f of this.slotted) {
       const t = f.fort!;
-      t.view.shield.alpha = t.alive ? 0.2 + Math.sin(this.time * 2 + f.id) * 0.06 : 0;
+      t.view.shield.alpha = t.alive ? (f.shieldT > 0 ? 0.6 + Math.sin(this.time * 6) * 0.2 : 0.2 + Math.sin(this.time * 2 + f.id) * 0.06) : 0;
       t.view.shield.rotation += dt * 0.2;
       t.hitFlash = Math.max(0, t.hitFlash - dt * 4);
       t.bar.width = 180 * Math.max(0, t.hp / t.maxHp);
@@ -1858,7 +1872,7 @@ export class World {
   snapshot() {
     return {
       time: this.time,
-      factions: this.factions.slice(1).map((f) => ({ code: f.code, slot: f.slot, score: f.score, kills: f.kills, fortHp: f.fort?.hp ?? FORT_HP, lastActiveAgo: this.time - f.lastActive })),
+      factions: this.factions.slice(1).map((f) => ({ code: f.code, slot: f.slot, score: f.score, kills: f.kills, chest: f.chest, chestStage: f.chestStage, fortHp: f.fort?.hp ?? FORT_HP, lastActiveAgo: this.time - f.lastActive })),
       caps: this.caps.map((c) => ({ owner: c.owner >= 0 ? this.factions[c.owner].code : null })),
     };
   }
@@ -1871,6 +1885,8 @@ export class World {
       f.color = this.distinctColor(def.color, f);
       f.score = fs.score;
       f.kills = fs.kills;
+      f.chest = fs.chest ?? 0;
+      f.chestStage = fs.chestStage ?? 0;
       f.lastActive = this.time - Math.min(fs.lastActiveAgo, 300);
       if (fs.slot >= 0 && fs.slot < SLOTS.length && !this.factions.some((o) => o !== f && o.slot === fs.slot)) {
         f.slot = fs.slot;

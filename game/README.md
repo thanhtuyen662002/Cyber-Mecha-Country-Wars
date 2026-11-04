@@ -14,6 +14,7 @@ npm run dev            # mở http://localhost:5173
 - `npm run build` tạo thư mục `dist/` chạy offline (không cần mạng, không CDN).
 - `npm run build:single` tạo 1 file `dist-single/index.html` để gửi xem nhanh; bản này tự bật người xem giả lập và không kết nối live.
 
+
 ## Đưa lên TikTok LIVE
 
 1. Cài và mở **TikFinity** (bản miễn phí), đăng nhập TikTok, bấm kết nối vào phiên live.
@@ -56,6 +57,15 @@ Quà combo (Rose x20) chỉ tính khi combo kết thúc, gọi tối đa 10 quâ
 
 Ranh giới mức xu, nước khởi đầu, thời lượng vòng… nằm trong [`public/config/game.json`](public/config/game.json), sửa không cần build lại.
 
+## Vòng lặp giữ chân và kéo donate
+
+- **Trận 5 phút** (`roundSeconds` trong `public/config/game.json`). 60 giây cuối điểm x2 có banner "FINAL MINUTE", 10 giây cuối đếm ngược lớn giữa màn hình.
+- **Quỹ chiến tranh (war chest):** mọi xu tặng cho một nước dồn vào thanh dưới cờ nước đó. Mốc 300 / 1.500 / 5.000 / 15.000 xu mở 3 Battle Tank / 2 War Robot / Mecha Titan / Orbital Cannon (`CHEST_GOALS` trong `src/sim/game.ts`).
+- **Underdog:** khi nước dẫn đầu có ≥400 điểm và nước yếu nhất dưới 40% điểm đó, nước yếu nhất được khiên pháo đài 45 giây (nhận 50% sát thương), điểm và war chest x1.5.
+- **Boss Raid** lúc còn 2:30: Rogue Titan trung lập rơi xuống giữa bản đồ, nước gây nhiều sát thương nhất được +1.500 điểm.
+- **Bình chọn thời tiết:** 45–15 giây trước khi đổi thời tiết, chat `!rain !storm !snow !fog !wind !sand !heat !emp` (người có cấp cao được tính nhiều phiếu hơn).
+- **Sau mỗi trận:** trang 2 của màn chiến thắng hiện bảng mùa (thắng/xu theo tháng) và Hall of Legends (top người ủng hộ mọi thời đại, cấp được giữ mãi).
+
 ## Có gì trong bản này
 
 - **Bản đồ:** 1 màn hình, 12 vị trí pháo đài quanh rìa (pháo đài thu nhỏ khi đông nước), 3 cứ điểm giữa sân: Energy Core (cả phe bắn nhanh hơn 30%), Repair Depot (hồi máu), Factory (tự ra lính mỗi 10 giây). Quá 12 nước thì nước lâu không tương tác nhất "ngủ" và nhường chỗ.
@@ -86,7 +96,7 @@ Tham số URL khác: `?sim` bật người xem giả lập, `?nolive` không k�
 
 - Bản đồ lục giác nở ra theo số nước (bản này dùng 12 vị trí trên 1 màn hình), tiền đồn cho nước ngủ.
 - Lưới nguyên tố (cháy lan, đóng băng, giật điện qua nước, axit, nổ metan), nhà phá hủy được.
-- Bình chọn thời tiết bằng chat, Boss Raid mỗi giờ, bảng quốc gia theo mùa trên màn hình, skin/khung tên theo cấp bậc, avatar người tặng.
+- Skin/khung tên theo cấp bậc, avatar người tặng (bình chọn thời tiết, Boss Raid, bảng mùa đã có, xem mục trên).
 - Âm thanh file thật (hiện vẫn là âm tổng hợp từ art-lab), đo FPS và soak test 72 giờ trên máy stream.
 
 ## Cấu trúc
