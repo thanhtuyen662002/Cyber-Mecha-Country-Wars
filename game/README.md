@@ -17,6 +17,8 @@ npm run dev            # mở http://localhost:5173
 
 ## Đưa lên TikTok LIVE
 
+Hướng dẫn đầy đủ cho mỗi buổi live (chuẩn bị, kịch bản dẫn, xử lý sự cố, bảng số liệu): [docs/LIVE_GUIDE.md](../docs/LIVE_GUIDE.md).
+
 **Cách nhanh nhất trên Windows:** bấm đúp `start-live.bat` ở thư mục gốc repo. Lần đầu nó tự cài và build, sau đó mở game ở `http://localhost:5173` và (nếu bạn gõ tên TikTok) chạy luôn bridge. Các bước chi tiết bên dưới.
 
 1. Cài và mở **TikFinity** (bản miễn phí), đăng nhập TikTok, bấm kết nối vào phiên live.
