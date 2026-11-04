@@ -258,6 +258,7 @@ async function main() {
     sfx.play('bigboom');
   };
   game.onRoundStart = (n) => {
+    sfx.warmup(4);
     hud.hideVictory();
     hud.pushFeed(`ROUND ${n}: BATTLE STARTS!`, 'XX', 0xffd34d);
     if (watchdog.dueForRefresh()) void watchdog.reload('scheduled-refresh');

@@ -56,19 +56,16 @@
     "rocket": {
       "files": [
         "sfx/rocket1.ogg",
-        "sfx/rocket2.ogg",
-        "sfx/rocket3.ogg"
+        "sfx/rocket2.ogg"
       ],
       "gain": 0.7
     },
     "laser": {
       "files": [
         "sfx/laser1.ogg",
-        "sfx/laser2.ogg",
-        "sfx/laser3.ogg",
-        "sfx/laser4.ogg"
+        "sfx/laser2.ogg"
       ],
-      "gain": 0.6
+      "gain": 0.45
     },
     "flame": {
       "files": [
@@ -85,43 +82,23 @@
       ],
       "gain": 0.9
     },
-    "alarm": {
-      "files": [
-        "sfx/alarm1.ogg",
-        "sfx/alarm2.ogg",
-        "sfx/alarm3.ogg"
-      ],
-      "gain": 0.5
-    },
     "drop": {
       "files": [
-        "sfx/drop1.ogg",
-        "sfx/drop2.ogg"
+        "sfx/drop1.ogg"
       ],
       "gain": 0.8
     },
     "clang": {
       "files": [
-        "sfx/clang1.ogg",
-        "sfx/clang2.ogg",
-        "sfx/clang3.ogg"
+        "sfx/clang1.ogg"
       ],
-      "gain": 0.6
+      "gain": 0.45
     },
     "splash": {
       "files": [
-        "sfx/splash1.ogg",
-        "sfx/splash2.ogg",
         "sfx/splash3.ogg"
       ],
       "gain": 0.7
-    },
-    "steam": {
-      "files": [
-        "sfx/steam1.ogg",
-        "sfx/steam2.ogg"
-      ],
-      "gain": 0.5
     }
   },
   "music": {
