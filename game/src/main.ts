@@ -4,7 +4,7 @@ import '@fontsource/orbitron/latin-700.css';
 import '@fontsource/orbitron/latin-900.css';
 import '@fontsource/rajdhani/latin-600.css';
 import '@fontsource/rajdhani/latin-700.css';
-import { Application, Container, type Filter, Rectangle, Sprite } from 'pixi.js';
+import { Application, Container, type Filter, Graphics, Rectangle, Sprite, type Texture } from 'pixi.js';
 import { AdvancedBloomFilter, ShockwaveFilter } from 'pixi-filters';
 import { H, SIM_DT, type TerrainKey, W, type WeatherKey, lerp, pick, rand } from './core/config';
 import { UNITS, type UnitKey, setTierMin } from './core/units';
@@ -385,6 +385,7 @@ async function main() {
       hud.update(1, game, 'sim');
     },
     freeze: () => {
+      watchdog.paused = true;
       app.ticker.stop();
       app.render();
     },
@@ -395,6 +396,36 @@ async function main() {
       const p = hud.sheet(keys);
       const url = await app.renderer.extract.base64({ target: p.root, frame: new Rectangle(0, 0, p.w, p.h), resolution: 1 });
       p.destroy();
+      return url;
+    },
+    /** Render baked art parts (e.g. 'fortress', 'capturePad.core') side by side, for design review. */
+    parts: async (names: string[], scale = 2, color = 0x38e1ff) => {
+      watchdog.paused = true;
+      const root = new Container();
+      let x = 0, h = 0;
+      for (const n of names) {
+        const [a, b] = n.split('.');
+        const any = art as unknown as Record<string, Record<string, { base: Texture; paint: Texture; glow: Texture }> & { base: Texture; paint: Texture; glow: Texture }>;
+        const pt = b ? any[a][b] : any[a];
+        const c = new Container();
+        const sz = pt.base.width * scale;
+        for (const [k, t] of [['base', pt.base], ['paint', pt.paint], ['glow', pt.glow]] as const) {
+          const s = new Sprite(t);
+          s.anchor.set(0.5);
+          if (k !== 'base') s.tint = color;
+          if (k === 'glow') s.blendMode = 'add';
+          s.scale.set(scale);
+          c.addChild(s);
+        }
+        c.position.set(x + sz / 2, sz / 2);
+        x += sz;
+        h = Math.max(h, sz);
+        root.addChild(c);
+      }
+      const bg = new Graphics().rect(0, 0, x, h).fill(0x3a3f36);
+      root.addChildAt(bg, 0);
+      const url = await app.renderer.extract.base64({ target: root, frame: new Rectangle(0, 0, x, h), resolution: 1 });
+      root.destroy({ children: true });
       return url;
     },
     /** Render one unit's spec sheet to a PNG data URL. */

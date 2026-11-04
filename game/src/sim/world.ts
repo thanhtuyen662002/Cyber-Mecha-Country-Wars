@@ -379,9 +379,9 @@ export class World {
     for (const d of CAPTURE_DEFS) {
       const view = new Container();
       view.position.set(d.x, d.y);
-      const base = new Sprite(this.art.capturePad.base);
-      const paint = new Sprite(this.art.capturePad.paint);
-      const glow = new Sprite(this.art.capturePad.glow);
+      const base = new Sprite(this.art.capturePad[d.kind].base);
+      const paint = new Sprite(this.art.capturePad[d.kind].paint);
+      const glow = new Sprite(this.art.capturePad[d.kind].glow);
       for (const s of [base, paint, glow]) s.anchor.set(0.5);
       glow.blendMode = 'add';
       const ring = new Sprite(this.fx.ring);

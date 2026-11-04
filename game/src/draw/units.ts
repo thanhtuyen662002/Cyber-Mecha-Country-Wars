@@ -827,6 +827,144 @@ function dragonWing(): DrawFn {
   };
 }
 
+function fortress(): DrawFn {
+  // hex citadel: armoured outer wall with corner gun towers, courtyard with silos and pads, reactor keep
+  const hex = (r: number, rot = Math.PI / 6) => {
+    const a: number[] = [];
+    for (let i = 0; i < 6; i++) a.push(Math.cos((i / 6) * Math.PI * 2 + rot) * r, Math.sin((i / 6) * Math.PI * 2 + rot) * r);
+    return a;
+  };
+  const corner = (i: number, r: number) => {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    return [Math.cos(a) * r, Math.sin(a) * r];
+  };
+  return ({ b, p, g }) => {
+    // outer wall
+    plate(b, hex(136), hex(126));
+    b.poly(hex(112)).fill(0x161a21).stroke(OUT); // courtyard floor
+    // floor grid clipped to the courtyard hex (pointy top: vertices at (0,+-110) and (+-95,+-55))
+    for (let k = -90; k <= 90; k += 18) {
+      const ym = 110 - (Math.abs(k) * 55) / 95, xm = Math.abs(k) <= 55 ? 95 : ((110 - Math.abs(k)) * 95) / 55;
+      b.moveTo(k, -ym).lineTo(k, ym).stroke({ width: 0.8, color: 0x2a303b, alpha: 0.8 });
+      b.moveTo(-xm, k).lineTo(xm, k).stroke({ width: 0.8, color: 0x2a303b, alpha: 0.8 });
+    }
+    b.poly(hex(112)).stroke({ width: 2, color: 0x0b0e13 });
+    // wall armour blocks + walkway
+    for (let i = 0; i < 6; i++) {
+      const [x0, y0] = corner(i, 119), [x1, y1] = corner(i + 1, 119);
+      for (let k = 1; k < 6; k++) {
+        const t = k / 6, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+        const a = Math.atan2(y1 - y0, x1 - x0);
+        const c = Math.cos(a), s = Math.sin(a);
+        const pt = (u: number, v: number) => [x + c * u - s * v, y + s * u + c * v];
+        b.poly([...pt(-8, -6), ...pt(8, -6), ...pt(8, 6), ...pt(-8, 6)]).fill(darkMetal()).stroke(EDGE);
+        if (k % 2) p.poly([...pt(-5, -3), ...pt(5, -3), ...pt(5, 3), ...pt(-5, 3)]).fill(0xeeeeee);
+      }
+      b.moveTo(...(corner(i, 131) as [number, number])).lineTo(...(corner(i + 1, 131) as [number, number])).stroke(HI);
+    }
+    // courtyard: three missile silos and three vehicle pads
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const x = Math.cos(a) * 82, y = Math.sin(a) * 82;
+      if (i % 2 === 0) {
+        b.circle(x, y, 13).fill(darkMetal()).stroke(OUT);
+        b.circle(x, y, 9).fill(0x14181f).stroke(EDGE);
+        b.moveTo(x - 9, y).lineTo(x + 9, y).stroke({ width: 1.2, color: 0x4a5262 });
+        g.circle(x, y, 2.4).fill(0xffffff);
+        g.circle(x, y, 9).stroke({ width: 0.8, color: 0xffffff, alpha: 0.6 });
+      } else {
+        b.poly(hexPts(x, y, 14)).fill(0x1d222b).stroke(EDGE);
+        b.poly(hexPts(x, y, 14)).stroke({ width: 1.6, color: 0x5a6477, alpha: 0.8 });
+        for (let k = 0; k < 3; k++) {
+          const ca = a + Math.PI + ((k - 1) * Math.PI) / 3;
+          p.circle(x + Math.cos(ca) * 10, y + Math.sin(ca) * 10, 1.6).fill(0xeeeeee);
+        }
+      }
+    }
+    // spokes from keep to the wall gates
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      b.moveTo(Math.cos(a) * 60, Math.sin(a) * 60).lineTo(Math.cos(a) * 108, Math.sin(a) * 108).stroke({ width: 7, color: 0x0b0e13 });
+      b.moveTo(Math.cos(a) * 60, Math.sin(a) * 60).lineTo(Math.cos(a) * 108, Math.sin(a) * 108).stroke({ width: 4.5, color: 0x3a414d });
+      g.moveTo(Math.cos(a) * 62, Math.sin(a) * 62).lineTo(Math.cos(a) * 106, Math.sin(a) * 106).stroke({ width: 1, color: 0xffffff, alpha: 0.55 });
+    }
+    // corner gun towers
+    for (let i = 0; i < 6; i++) {
+      const [x, y] = corner(i, 122);
+      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      const c = Math.cos(a), s = Math.sin(a);
+      for (const o of [-4, 4]) {
+        const px = x - s * o, py = y + c * o;
+        b.moveTo(px, py).lineTo(px + c * 30, py + s * 30).stroke({ width: 4.4, color: 0x0b0e13 });
+        b.moveTo(px, py).lineTo(px + c * 30, py + s * 30).stroke({ width: 2.6, color: 0x4a5262 });
+      }
+      plate(b, hexPts(x, y, 19), hexPts(x, y, 15.5));
+      b.circle(x, y, 8).fill(0x14181f).stroke(EDGE);
+      p.poly(hexPts(x, y, 12)).stroke({ width: 3, color: 0xeeeeee });
+      g.circle(x, y, 3.2).fill(0xffffff);
+    }
+    // central keep + reactor
+    plate(b, hex(58), hex(50));
+    b.poly(hex(58)).stroke({ width: 2.4, color: 0x0b0e13 });
+    for (let i = 0; i < 6; i++) {
+      const [x, y] = corner(i, 54);
+      b.circle(x, y, 3).fill(0x14181f).stroke(EDGE);
+    }
+    b.moveTo(...(corner(4, 55) as [number, number])).lineTo(...(corner(5, 55) as [number, number])).stroke(HI);
+    b.circle(0, 0, 32).fill(0x0e1116).stroke(OUT);
+    b.circle(0, 0, 26).stroke({ width: 3, color: 0x4a5262 });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      b.rect(Math.cos(a) * 29 - 1.5, Math.sin(a) * 29 - 1.5, 3, 3).fill(0x2a303b);
+    }
+    p.poly(hex(46)).stroke({ width: 5, color: 0xeeeeee });
+    g.circle(0, 0, 17).fill(0xffffff);
+    g.circle(0, 0, 25).stroke({ width: 2, color: 0xffffff });
+    g.poly(hex(126)).stroke({ width: 1.6, color: 0xffffff, alpha: 0.8 });
+    g.poly(hex(112)).stroke({ width: 1, color: 0xffffff, alpha: 0.35 });
+  };
+}
+
+function capturePad(kind: 'core' | 'depot' | 'factory'): DrawFn {
+  // neutral objective pad with a holo icon for its role
+  return ({ b, p, g }) => {
+    const hex = hexPts(0, 0, 72);
+    plate(b, hex, hexPts(0, 0, 64));
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      b.poly(cham(Math.cos(a) * 58 - 6, Math.sin(a) * 58 - 6, 12, 12, 3)).fill(0x14181f).stroke(EDGE);
+      p.poly(cham(Math.cos(a) * 58 - 3.5, Math.sin(a) * 58 - 3.5, 7, 7, 2)).fill(0xeeeeee);
+    }
+    b.circle(0, 0, 46).fill(0x14181f).stroke(OUT);
+    b.circle(0, 0, 40).stroke({ width: 2, color: 0x3a414d });
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      b.moveTo(Math.cos(a) * 41, Math.sin(a) * 41).lineTo(Math.cos(a) * 45, Math.sin(a) * 45).stroke({ width: 1, color: 0x5a6477 });
+    }
+    g.circle(0, 0, 40).stroke({ width: 1.6, color: 0xffffff, alpha: 0.8 });
+    // role icon
+    if (kind === 'core') {
+      const bolt = [4, -24, -12, 4, -1, 4, -5, 24, 12, -4, 1, -4];
+      b.poly(bolt).fill(0x2a303b).stroke(OUT);
+      g.poly(bolt).fill({ color: 0xffffff, alpha: 0.9 });
+    } else if (kind === 'depot') {
+      const w = [-6, -22, 6, -22, 6, -6, 22, -6, 22, 6, 6, 6, 6, 22, -6, 22, -6, 6, -22, 6, -22, -6, -6, -6];
+      b.poly(w).fill(0x2a303b).stroke(OUT);
+      g.poly(w).fill({ color: 0xffffff, alpha: 0.9 });
+    } else {
+      const gear: number[] = [];
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2, r = i % 2 ? 17 : 23;
+        gear.push(Math.cos(a - 0.1) * r, Math.sin(a - 0.1) * r, Math.cos(a + 0.1) * r, Math.sin(a + 0.1) * r);
+      }
+      b.poly(gear).fill(0x2a303b).stroke(OUT);
+      g.poly(gear).fill({ color: 0xffffff, alpha: 0.9 });
+      b.circle(0, 0, 7).fill(0x14181f);
+      g.circle(0, 0, 7).fill({ color: 0x000000, alpha: 1 });
+    }
+  };
+}
+
 function jeepGun(): DrawFn {
   // ring-mounted rotary machine gun with ammo drum and angled shield
   return ({ b, p, g }) => {
@@ -998,44 +1136,6 @@ function rotorDisc(): DrawFn {
 
 
 
-function fortress(): DrawFn {
-  const hex = (r: number) => {
-    const a: number[] = [];
-    for (let i = 0; i < 6; i++) a.push(Math.cos((i / 6) * Math.PI * 2 + Math.PI / 6) * r, Math.sin((i / 6) * Math.PI * 2 + Math.PI / 6) * r);
-    return a;
-  };
-  return ({ b, p, g }) => {
-    b.poly(hex(132)).fill(0x2a303b).stroke({ width: 3, color: 0x10141a });
-    b.poly(hex(118)).fill(metal()).stroke(EDGE);
-    b.poly(hex(100)).fill(0x3a414d).stroke(EDGE);
-    // yard markings
-    b.circle(0, 0, 70).stroke({ width: 2, color: 0x5a6477, alpha: 0.7 });
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      b.rect(Math.cos(a) * 80 - 3, Math.sin(a) * 80 - 3, 6, 6).fill(0x252a33);
-    }
-    // corner turrets
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
-      const x = Math.cos(a) * 120, y = Math.sin(a) * 120;
-      b.circle(x, y, 17).fill(darkMetal()).stroke(EDGE);
-      b.rect(x - 2, y - 2, Math.cos(a) * 26, 4).fill(0x1b1f26);
-      p.circle(x, y, 8).fill(0xeeeeee).stroke(PANEL);
-      g.circle(x, y, 3).fill(0xffffff);
-    }
-    // central keep
-    b.poly(hex(52)).fill(metal()).stroke({ width: 2, color: 0x10141a });
-    b.circle(0, 0, 30).fill(0x1d222b).stroke(EDGE);
-    p.poly(hex(44)).stroke({ width: 5, color: 0xeeeeee });
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
-      p.rect(Math.cos(a) * 109 - 6, Math.sin(a) * 109 - 6, 12, 12).fill(0xeeeeee);
-    }
-    g.circle(0, 0, 18).fill(0xffffff);
-    g.circle(0, 0, 26).stroke({ width: 2, color: 0xffffff });
-    g.poly(hex(118)).stroke({ width: 1.6, color: 0xffffff, alpha: 0.8 });
-  };
-}
 
 
 
@@ -1096,21 +1196,6 @@ function parachute(): DrawFn {
   };
 }
 
-function capturePad(): DrawFn {
-  return ({ b, p, g }) => {
-    const hex: number[] = [];
-    for (let i = 0; i < 6; i++) hex.push(Math.cos((i / 6) * Math.PI * 2) * 70, Math.sin((i / 6) * Math.PI * 2) * 70);
-    b.poly(hex).fill({ color: 0x2a303b, alpha: 0.85 }).stroke({ width: 3, color: 0x10141a });
-    b.circle(0, 0, 50).fill(metal()).stroke(EDGE);
-    b.circle(0, 0, 34).fill(0x1d222b).stroke(EDGE);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
-      p.rect(Math.cos(a) * 60 - 5, Math.sin(a) * 60 - 5, 10, 10).fill(0xeeeeee);
-    }
-    g.circle(0, 0, 40).stroke({ width: 2, color: 0xffffff });
-    g.circle(0, 0, 12).fill(0xffffff);
-  };
-}
 
 
 // ---------------------------------------------------------------- expansion units (full 24-unit roster)
@@ -1185,7 +1270,7 @@ export interface UnitArt {
   bomber: PartTex;
   crate: PartTex;
   parachute: PartTex;
-  capturePad: PartTex;
+  capturePad: Record<'core' | 'depot' | 'factory', PartTex>;
   jeepBody: PartTex;
   jeepGun: PartTex;
   repairDrone: PartTex;
@@ -1226,7 +1311,7 @@ export function makeUnitArt(renderer: Renderer): UnitArt {
     rotorDisc: part(116, rotorDisc()),
     titanLeg: part(100, titanLeg(), 5),
     titanTorso: part(204, titanTorso(), 7),
-    fortress: part(300, fortress(), 8),
+    fortress: part(304, fortress(), 8),
     sniper: part(100, sniper(), 3),
     atSoldier: part(68, atSoldier(), 3),
     flamer: part(68, flamer(), 3),
@@ -1237,7 +1322,7 @@ export function makeUnitArt(renderer: Renderer): UnitArt {
     bomber: part(150, bomber(), 5),
     crate: part(48, crate(), 4),
     parachute: part(80, parachute()),
-    capturePad: part(160, capturePad(), 6),
+    capturePad: { core: part(168, capturePad('core'), 6), depot: part(168, capturePad('depot'), 6), factory: part(168, capturePad('factory'), 6) },
     jeepBody: part(76, jeepBody(), 3),
     jeepGun: part(56, jeepGun(), 3),
     repairDrone: part(68, repairDrone(), 3),
