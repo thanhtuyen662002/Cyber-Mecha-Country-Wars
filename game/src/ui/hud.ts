@@ -145,47 +145,44 @@ class Arsenal {
   private cells: { tier: number; bg: Graphics; name: Text; price: Text; check: Text; portraits: Map<UnitKey, Portrait>; idx: number; shown: UnitKey | null; pulse: number; done: boolean }[] = [];
   private cycle = 0;
   private known = new Set<UnitKey>();
-  static readonly CW = 104;
-  static readonly CH = 100;
+  static readonly CH = 66;
+  static readonly CW = Math.floor((W - 24 - 5 * 6) / 6);
   constructor(art: UnitArt, fx: FxTextures) {
     const { CW, CH } = Arsenal;
+    // header tab hanging under the country strip
     const head = new Graphics();
-    panel(head, 0, 0, CW, 50, { color: GOLD, cut: 10, alpha: 0.8 });
-    const t1 = new Text({ text: 'NOT YET', style: tt(13, GOLD) });
-    const t2 = new Text({ text: 'SUMMONED', style: tt(13, GOLD) });
-    t1.anchor.set(0.5, 0);
-    t2.anchor.set(0.5, 0);
-    t1.position.set(CW / 2, 7);
-    t2.position.set(CW / 2, 26);
-    this.root.addChild(head, t1, t2);
+    const label = new Text({ text: 'NOT YET SUMMONED THIS ROUND · BE THE FIRST!', style: tt(13, GOLD) });
+    label.anchor.set(0.5, 0.5);
+    label.position.set((W - 24) / 2, 11);
+    panel(head, (W - 24) / 2 - label.width / 2 - 18, 0, label.width + 36, 22, { color: GOLD, cut: 6, alpha: 0.85, scan: false });
+    this.root.addChild(head, label);
     for (let tier = 1; tier <= 6; tier++) {
-      const y = 56 + (tier - 1) * (CH + 6);
       const col = TIER_COLOR[tier];
       const cell = new Container();
-      cell.y = y;
+      cell.position.set((tier - 1) * (CW + 6), 26);
       const bg = new Graphics();
-      panel(bg, 0, 0, CW, CH, { color: col, cut: 10, alpha: 0.78, scan: false });
-      const badge = new Graphics().roundRect(4, 4, 34, 20, 4).fill({ color: col, alpha: 0.95 });
-      const bt = new Text({ text: `T${tier}`, style: tt(14, 0x02060c, { stroke: { width: 0 }, dropShadow: false }) });
+      panel(bg, 0, 0, CW, CH, { color: col, cut: 10, alpha: 0.7, scan: false });
+      const badge = new Graphics().roundRect(4, 4, 30, 18, 4).fill({ color: col, alpha: 0.95 });
+      const bt = new Text({ text: `T${tier}`, style: tt(13, 0x02060c, { stroke: { width: 0 }, dropShadow: false }) });
       bt.anchor.set(0.5);
-      bt.position.set(21, 14);
-      const price = new Text({ text: '', style: st(17, col) });
-      price.anchor.set(1, 0);
-      price.position.set(CW - 6, 3);
+      bt.position.set(19, 13);
+      const price = new Text({ text: '', style: st(21, col) });
+      price.anchor.set(0, 0);
+      price.position.set(70, 5);
       const name = new Text({ text: '', style: st(13, 0xffffff) });
-      name.anchor.set(0.5, 1);
-      name.position.set(CW / 2, CH - 3);
-      const check = new Text({ text: '✓ ALL OUT', style: st(15, 0x5dff8a) });
-      check.anchor.set(0.5);
-      check.position.set(CW / 2, CH / 2 + 10);
+      name.anchor.set(0, 0);
+      name.position.set(70, 36);
+      const check = new Text({ text: '✓ ALL OUT', style: st(17, 0x5dff8a) });
+      check.anchor.set(0, 0.5);
+      check.position.set(70, CH / 2);
       check.visible = false;
       cell.addChild(bg);
       const portraits = new Map<UnitKey, Portrait>();
       for (const k of TIER_UNITS[tier]) {
         const big = k === 'titan' || k === 'carrier' || k === 'dragon' || k === 'stormfort' || k === 'mobile';
-        const p = new Portrait(k === 'strike' ? 'bomber' : k, col, big ? 62 : 52, art, fx);
+        const p = new Portrait(k === 'strike' ? 'bomber' : k, col, big ? 54 : 46, art, fx);
         if (k === 'strike') p.root.children[1].tint = GOLD;
-        p.root.position.set(CW / 2, 52);
+        p.root.position.set(36, CH / 2 + 4);
         p.root.visible = false;
         cell.addChild(p.root);
         portraits.set(k, p);
@@ -233,12 +230,12 @@ class Arsenal {
       const nm = (key === 'strike' ? 'AIR STRIKE' : UNITS[key].name).toUpperCase();
       if (c.name.text !== nm) {
         c.name.text = nm;
-        c.name.scale.set(Math.min(1, (Arsenal.CW - 8) / Math.max(1, c.name.width / c.name.scale.x)));
+        c.name.scale.set(Math.min(1, (Arsenal.CW - 74) / Math.max(1, c.name.width / c.name.scale.x)));
       }
       const pr = c.tier === 1 ? 'ROSE' : TIER_MIN[c.tier].toLocaleString('en-US');
       if (c.price.text !== pr) {
         c.price.text = pr;
-        c.price.scale.set(Math.min(1, 60 / Math.max(1, c.price.width / c.price.scale.x)));
+        c.price.scale.set(Math.min(1, (Arsenal.CW - 74) / Math.max(1, c.price.width / c.price.scale.x)));
       }
     }
   }
@@ -395,7 +392,7 @@ export class Hud {
     this.tipBg = new Graphics();
     this.tip = new Text({ text: '', style: st(30, 0xffffff, { align: 'center', wordWrap: true, wordWrapWidth: W - 140 }) });
     this.tip.anchor.set(0.5);
-    this.tip.position.set(W / 2, 300);
+    this.tip.position.set(W / 2, 368);
     this.layer.addChild(this.tipBg, this.tip);
 
     // rivalry
@@ -419,9 +416,9 @@ export class Hud {
     this.ticker.position.set(W / 2, H - 48);
     this.layer.addChild(this.ticker);
 
-    // tier ladder / not-yet-summoned rail on the right edge (between the top and bottom fortresses)
+    // tier ladder / not-yet-summoned row under the country strip (TikTok covers the screen edges)
     this.arsenal = new Arsenal(art, fx);
-    this.arsenal.root.position.set(W - Arsenal.CW - 6, 590);
+    this.arsenal.root.position.set(12, 232);
     this.layer.addChild(this.arsenal.root);
 
     // cut-in
@@ -1086,7 +1083,7 @@ export class Hud {
       bar.clear().rect(x, 33, 150, 4).fill({ color: 0x000000, alpha: 0.5 }).rect(x, 33, 150 * k, 4).fill({ color: f.shieldT > 0 ? 0xffd34d : f.color, alpha: 0.95 });
     });
     for (let i = ranked.length; i < this.chestBars.length; i++) this.chestBars[i].clear();
-    this.arsenal.refresh(w.summoned, w.slotted.length > 6);
+    this.arsenal.refresh(w.summoned, false);
     // connection dot
     const col = status === 'live' ? 0x3dff7a : status === 'sim' ? 0x7f93b5 : status === 'connecting' ? 0xffd34d : 0xff4f4f;
     this.dot.clear().circle(0, 0, 6).fill(col);
@@ -1124,13 +1121,13 @@ export class Hud {
     this.tip.style.fill = tipCol;
     this.tipBg.clear();
     if (tip) {
-      const th = this.tip.height + 28, ty = 300 - th / 2;
+      const th = this.tip.height + 28, ty = 368 - th / 2;
       panel(this.tipBg, 40, ty, W - 80, th, { color: sos ? 0xff4f4f : GOLD, alpha: 0.75 });
       if (sos) for (let k = 0; k < 6; k++) this.tipBg.poly([52 + k * 16, ty + 6, 60 + k * 16, ty + 6, 52 + k * 16, ty + th - 6, 44 + k * 16, ty + th - 6]).fill({ color: 0xff4f4f, alpha: 0.6 });
     }
     this.tip.visible = !!tip;
-    if (tip) this.vsBox.y = 300 + this.tip.height / 2 + 70;
-    else this.vsBox.y = 330;
+    if (tip) this.vsBox.y = 368 + this.tip.height / 2 + 70;
+    else this.vsBox.y = 400;
     // how-to-play ticker
     this.tickerT -= 0.25;
     if (this.tickerT <= 0) {
