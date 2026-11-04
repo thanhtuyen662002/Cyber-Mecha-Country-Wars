@@ -9,7 +9,7 @@ import type { FxTextures } from '../draw/fxTextures';
 import type { UnitArt } from '../draw/units';
 import { type UnitVisual, buildVisual } from '../sim/visuals';
 import type { LiveStatus } from '../net/live';
-import type { Game, RoundSummary } from '../sim/game';
+import { CHEST_GOALS, type Game, type RoundSummary } from '../sim/game';
 import { RANKS, rankOf } from '../sim/players';
 
 // Sci-fi type: Orbitron for headings, Rajdhani for everything you read quickly (bundled, see main.ts).
@@ -43,6 +43,17 @@ function panel(g: Graphics, x: number, y: number, w: number, h: number, o: { col
   g.moveTo(x + b, y + h).lineTo(x, y + h).lineTo(x, y + h - b).stroke({ width: 4, color, alpha: 1 });
   // tick marks along the bottom edge
   for (let k = 0; k < 4; k++) g.rect(x + w - c - 14 - k * 9, y + h - 6, 5, 2).fill({ color, alpha: 0.8 });
+}
+/** "USA war chest 240/300 → 3 BATTLE TANKS" for the country closest to its next goal (>=50%). */
+function chestCall(fs: import('../sim/world').Faction[]): string | null {
+  let best: string | null = null, bk = 0.5;
+  for (const f of fs) {
+    const g = CHEST_GOALS[f.chestStage];
+    if (!g || !f.fort?.alive) continue;
+    const k = f.chest / g.coins;
+    if (k >= bk && k < 1) (bk = k), (best = `${f.def.name.toUpperCase()} WAR CHEST ${Math.floor(f.chest)}/${g.coins} coins → ${g.label}! Every gift fills it`);
+  }
+  return best;
 }
 const ease = (x: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 
@@ -181,8 +192,22 @@ export class Hud {
   // victory
   private vicBg: Graphics;
   private vicBox = new Container();
+  private vicSeason = new Container();
+  private vicTime = 0;
   private textTick = 0;
   private finalFlash = 0;
+  // big centre alerts (war chest, underdog, final minute) and the last-10s countdown
+  private alertBox = new Container();
+  private alertBg = new Graphics();
+  private alertTitle!: Text;
+  private alertSub!: Text;
+  private alertFlag!: Sprite;
+  private alertQ: { title: string; sub: string; color: number; code?: string }[] = [];
+  private alertT = 0;
+  private countText!: Text;
+  private lastCount = -1;
+  private countPulse = 0;
+  private chestBars: Graphics[] = [];
 
   constructor(private flags: FlagAtlas, private art: UnitArt, private fx: FxTextures) {
     // ---- top HUD: three rows of holo panels
@@ -236,6 +261,21 @@ export class Hud {
     this.dot.position.set(W - 34, 203);
     this.layer.addChild(crown, this.throneName, this.throneCoins, this.throneCall, this.roundText, this.timerText, this.weatherText, this.forecastText, this.strip, this.dot);
 
+    // centre alert + final countdown
+    this.alertTitle = new Text({ text: '', style: tt(46, 0xffffff) });
+    this.alertTitle.anchor.set(0.5);
+    this.alertSub = new Text({ text: '', style: st(30, 0xffffff, { align: 'center', wordWrap: true, wordWrapWidth: W - 220 }) });
+    this.alertSub.anchor.set(0.5, 0);
+    this.alertFlag = new Sprite(this.flags.get('XX'));
+    this.alertFlag.anchor.set(0.5);
+    this.alertBox.addChild(this.alertBg, this.alertFlag, this.alertTitle, this.alertSub);
+    this.alertBox.position.set(W / 2, 1430); // below the cut-in and deploy cards, above the feed
+    this.alertBox.visible = false;
+    this.countText = new Text({ text: '', style: tt(220, 0xffffff, { stroke: { color: 0x02060c, width: 14 } }) });
+    this.countText.anchor.set(0.5);
+    this.countText.position.set(W / 2, H / 2 - 40);
+    this.countText.visible = false;
+    this.layer.addChild(this.alertBox, this.countText);
     // tip / SOS banner
     this.tipBg = new Graphics();
     this.tip = new Text({ text: '', style: st(30, 0xffffff, { align: 'center', wordWrap: true, wordWrapWidth: W - 140 }) });
@@ -297,11 +337,36 @@ export class Hud {
 
     // victory overlay
     this.vicBg = new Graphics().rect(0, 0, W, H).fill({ color: 0x02040a, alpha: 0.78 });
-    this.overlay.addChild(this.vicBg, this.vicBox);
+    this.overlay.addChild(this.vicBg, this.vicBox, this.vicSeason);
     this.overlay.visible = false;
   }
 
   // ------------------------------------------------------------ feed
+  /** Big centre banner for round-changing moments; queued so they never overlap. */
+  alert(title: string, sub: string, color: number, code?: string) {
+    if (this.alertQ.length < 4) this.alertQ.push({ title, sub, color, code });
+  }
+  private showAlert(a: { title: string; sub: string; color: number; code?: string }) {
+    this.alertTitle.text = a.title;
+    this.alertTitle.style.fill = a.color;
+    this.alertTitle.scale.set(Math.min(1, (W - 200) / (this.alertTitle.width / this.alertTitle.scale.x)));
+    this.alertSub.text = a.sub;
+    this.alertFlag.visible = !!a.code;
+    if (a.code) {
+      this.alertFlag.texture = this.flags.get(a.code);
+      this.alertFlag.scale.set(1);
+    }
+    const top = a.code ? -110 : -50;
+    this.alertFlag.position.set(0, top + 30);
+    this.alertTitle.position.set(0, top + (a.code ? 100 : 40));
+    this.alertSub.position.set(0, this.alertTitle.y + 38);
+    const h = this.alertSub.y + this.alertSub.height + 26 - top;
+    this.alertBg.clear();
+    panel(this.alertBg, -(W - 120) / 2, top - 14, W - 120, h + 14, { color: a.color, alpha: 0.85, cut: 26, edge: 3 });
+    this.alertT = 3.8;
+    this.alertBox.visible = true;
+  }
+
   pushFeed(text: string, code: string, color = 0xffffff) {
     let line = this.feed.length >= 5 ? this.feed.shift()! : null;
     if (!line) {
@@ -689,8 +754,46 @@ export class Hud {
     }
     if (s.topDonor) add(new Text({ text: `TOP SUPPORTER  @${s.topDonor.name}  ·  ${fmt(s.topDonor.roundCoins ?? 0)} coins`, style: st(34, 0xffd34d) }), W / 2, y).anchor.set(0.5);
     add(new Text({ text: 'Next battle starting… type your country code to join!', style: st(30, 0xffffff) }), W / 2, 1560).anchor.set(0.5);
+    this.buildSeason(s);
+    this.vicTime = 0;
+    this.vicBox.visible = true;
+    this.vicSeason.visible = false;
     this.overlay.visible = true;
     this.overlay.alpha = 0;
+  }
+  /** Second victory page: monthly country standings and all-time supporters (the reasons to come back). */
+  private buildSeason(s: RoundSummary) {
+    this.vicSeason.removeChildren().forEach((c) => c.destroy());
+    const add = <T extends Container>(o: T, x: number, y: number) => (o.position.set(x, y), this.vicSeason.addChild(o), o);
+    const box = new Graphics();
+    panel(box, 60, 300, W - 120, 1320, { color: GOLD, alpha: 0.6, cut: 40 });
+    this.vicSeason.addChild(box);
+    const month = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }).toUpperCase();
+    add(new Text({ text: 'SEASON STANDINGS', style: tt(48, GOLD) }), W / 2, 390).anchor.set(0.5);
+    add(new Text({ text: `${month} · most round wins takes the season crown`, style: st(28, 0x9fdcff) }), W / 2, 450).anchor.set(0.5);
+    s.season.forEach((r, i) => {
+      const y = 540 + i * 78;
+      const f = add(new Sprite(this.flags.get(r.code)), 170, y);
+      f.anchor.set(0.5);
+      f.scale.set(0.6);
+      add(new Text({ text: `${i + 1}. ${r.name}`, style: st(38, i === 0 ? GOLD : 0xffffff) }), 220, y).anchor.set(0, 0.5);
+      add(new Text({ text: `${r.wins} W · ${fmt(r.coins)} coins`, style: st(32, 0x9fdcff) }), W - 140, y).anchor.set(1, 0.5);
+    });
+    add(new Text({ text: 'HALL OF LEGENDS', style: tt(40, 0xff9a3d) }), W / 2, 1000).anchor.set(0.5);
+    add(new Text({ text: 'all-time supporters · ranks are kept forever', style: st(26, 0x9fdcff) }), W / 2, 1050).anchor.set(0.5);
+    s.legends.forEach((p, i) => {
+      const y = 1120 + i * 70;
+      const r = RANKS[p.rank];
+      if (p.country) {
+        const f = add(new Sprite(this.flags.get(p.country)), 170, y);
+        f.anchor.set(0.5);
+        f.scale.set(0.5);
+      }
+      add(new Text({ text: `@${p.name}`, style: st(36, 0xffffff) }), 220, y).anchor.set(0, 0.5);
+      add(new Text({ text: `${r.name.toUpperCase()} · ${fmt(p.coins)}`, style: st(30, r.color) }), W - 140, y).anchor.set(1, 0.5);
+    });
+    if (!s.legends.length) add(new Text({ text: 'Be the first legend: any gift ranks you up', style: st(32, 0xffffff) }), W / 2, 1200).anchor.set(0.5);
+    add(new Text({ text: 'Next battle starting… type your country code to join!', style: st(30, 0xffffff) }), W / 2, 1560).anchor.set(0.5);
   }
   hideVictory() {
     this.overlay.visible = false;
@@ -758,9 +861,27 @@ export class Hud {
       l.root.alpha = Math.max(0, Math.min(1, l.life));
     }
     if (this.overlay.visible) this.overlay.alpha = Math.min(1, this.overlay.alpha + dt * 2);
+    if (this.overlay.visible) {
+      this.vicTime += dt;
+      const second = this.vicTime > 6;
+      this.vicBox.visible = !second;
+      this.vicSeason.visible = second;
+    }
     this.scan.x = ((this.finalFlash * 260) % (W + 400)) - 200;
     // final assault flashing timer
     this.finalFlash += dt;
+    if (this.alertT > 0) {
+      this.alertT -= dt;
+      const k = Math.min(1, (3.8 - this.alertT) / 0.25), out = Math.min(1, this.alertT / 0.3);
+      this.alertBox.alpha = Math.min(k, out);
+      this.alertBox.scale.set(0.85 + 0.15 * ease(k));
+      if (this.alertT <= 0) this.alertBox.visible = false;
+    } else if (this.alertQ.length) this.showAlert(this.alertQ.shift()!);
+    if (this.countText.visible) {
+      this.countPulse = Math.max(0, this.countPulse - dt * 1.4);
+      this.countText.scale.set(1 + this.countPulse * 0.5);
+      this.countText.alpha = 0.35 + this.countPulse * 0.6;
+    }
     this.textTick -= dt;
     if (this.textTick > 0) return;
     this.textTick = 0.25;
@@ -795,6 +916,16 @@ export class Hud {
     this.timerText.style.fill = final ? (Math.sin(this.finalFlash * 8) > 0 ? 0xff3b3b : 0xffd34d) : 0xffffff;
     this.timerText.style.fontSize = final ? 24 : 38;
     this.timerText.scale.set(Math.min(1, 240 / Math.max(1, this.timerText.width / this.timerText.scale.x)));
+    const cd = r.state === 'battle' && tl <= 10 && tl > 0 ? tl : -1;
+    if (cd !== this.lastCount) {
+      this.lastCount = cd;
+      this.countPulse = 1;
+    }
+    this.countText.visible = cd > 0;
+    if (cd > 0 && this.countText.text !== String(cd)) {
+      this.countText.text = String(cd);
+      this.countText.style.fill = cd <= 3 ? 0xff3b3b : 0xffd34d;
+    }
     const wd = WEATHERS.find((x) => x.key === game.weather)!;
     this.weatherText.text = `${wd.icon} ${wd.name.toUpperCase()}`;
     if (game.nextWeather) {
@@ -810,7 +941,9 @@ export class Hud {
       flag.scale.set(0.45);
       const text = new Text({ text: '', style: tt(20) });
       text.anchor.set(0, 0.5);
-      this.strip.addChild(flag, text);
+      const bar = new Graphics();
+      this.strip.addChild(bar, flag, text);
+      this.chestBars.push(bar);
       this.stripItems.push({ flag, text });
     }
     this.stripItems.forEach((it, i) => {
@@ -823,7 +956,14 @@ export class Hud {
       it.text.text = fmt(f.score);
       it.text.style.fill = f.fort?.alive === false ? 0x777777 : f.color;
       it.text.position.set(x + 50, 18);
+      // war-chest progress toward the next goal
+      const bar = this.chestBars[i];
+      const g = CHEST_GOALS[f.chestStage];
+      const lo = f.chestStage > 0 ? CHEST_GOALS[f.chestStage - 1].coins : 0;
+      const k = g ? Math.max(0, Math.min(1, (f.chest - lo) / (g.coins - lo))) : 1;
+      bar.clear().rect(x, 33, 150, 4).fill({ color: 0x000000, alpha: 0.5 }).rect(x, 33, 150 * k, 4).fill({ color: f.shieldT > 0 ? 0xffd34d : f.color, alpha: 0.95 });
     });
+    for (let i = ranked.length; i < this.chestBars.length; i++) this.chestBars[i].clear();
     // connection dot
     const col = status === 'live' ? 0x3dff7a : status === 'sim' ? 0x7f93b5 : status === 'connecting' ? 0xffd34d : 0xff4f4f;
     this.dot.clear().circle(0, 0, 6).fill(col);
@@ -840,6 +980,17 @@ export class Hud {
     if (sos) {
       tip = `SOS! ${sos.def.name.toUpperCase()} FORTRESS UNDER 25% · gift now to defend it!`;
       tipCol = Math.sin(this.finalFlash * 6) > 0 ? 0xff4f4f : 0xffd34d;
+    } else if (game.underdogFid >= 0 && w.factions[game.underdogFid]?.shieldT > 0) {
+      const u = w.factions[game.underdogFid];
+      tip = `UNDERDOG ${u.def.name.toUpperCase()} · shield ${Math.ceil(u.shieldT)}s · points x1.5 · gift now to turn it around!`;
+      tipCol = 0xffd34d;
+    } else if (chestCall(w.slotted)) {
+      tip = chestCall(w.slotted)!;
+      tipCol = 0xffd34d;
+    } else if (game.voteOpen) {
+      const top = [...game.votes].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${WEATHERS.find((x) => x.key === k)!.icon} ${v}`).join('  ');
+      tip = `VOTE THE NEXT WEATHER: type !rain !storm !snow !fog !wind !sand !heat !emp${top ? `   ·   ${top}` : ''}`;
+      tipCol = 0x9fdcff;
     } else {
       const bombed = w.slotted.filter((f) => f.hurtBy.air > 400).sort((a, b) => b.hurtBy.air - a.hurtBy.air)[0];
       const armored = w.slotted.filter((f) => f.hurtBy.vehicle + f.hurtBy.mech > 900).sort((a, b) => b.hurtBy.vehicle + b.hurtBy.mech - (a.hurtBy.vehicle + a.hurtBy.mech))[0];
@@ -873,6 +1024,9 @@ export class Hud {
         `Pick your unit: !tank !aa !emp !mlrs !hover !robot !carrier !dragon …`,
         `${game.cfg.likesPerCrate.toLocaleString('en-US')} LIKES = SUPPLY CRATE (${fmt(game.likesRoom)}/${fmt(game.cfg.likesPerCrate)})`,
         `Hold the ENERGY CORE · REPAIR DEPOT · FACTORY for bonuses`,
+        `WAR CHEST: every coin fills your country's bar → ${CHEST_GOALS.map((g) => `${fmt(g.coins)} ${g.label}`).join(' · ')}`,
+        `Losing badly? The UNDERDOG gets a shield and x1.5 points: rally your country!`,
+        `BOSS RAID at 2:30 · FINAL MINUTE = DOUBLE POINTS · vote the weather with !rain !storm !fog`,
       ];
       this.ticker.text = lines[this.tickerIdx++ % lines.length];
       this.ticker.scale.set(Math.min(1, (W - 80) / Math.max(1, this.ticker.width / this.ticker.scale.x)));

@@ -21,7 +21,7 @@ export interface GameConfig {
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
-  roundSeconds: 15 * 60,
+  roundSeconds: 5 * 60,
   victorySeconds: 12,
   seedCountries: ['US', 'GB', 'CA', 'AU'],
   idleSeconds: 45,
@@ -36,7 +36,25 @@ export interface RoundSummary {
   ranking: { code: string; name: string; score: number; kills: number; color: number }[];
   mvp: Player | null;
   topDonor: Player | null;
+  /** this month's country standings (wins, coins) */
+  season: { code: string; name: string; wins: number; coins: number }[];
+  /** all-time top supporters */
+  legends: { name: string; coins: number; rank: number; country: string | null }[];
 }
+
+/** Chat words that vote for the next weather. */
+const WEATHER_VOTES: Record<string, WeatherKey> = {
+  '!clear': 'clear', '!sun': 'clear', '!rain': 'rain', '!storm': 'storm', '!thunder': 'storm', '!snow': 'blizzard', '!blizzard': 'blizzard',
+  '!fog': 'fog', '!wind': 'wind', '!sand': 'sandstorm', '!sandstorm': 'sandstorm', '!heat': 'heatwave', '!heatwave': 'heatwave', '!emp': 'emstorm', '!em': 'emstorm',
+};
+
+/** Shared war-chest goals: every coin gifted to a country this round fills its chest; each goal calls in a reward. */
+export const CHEST_GOALS: { coins: number; label: string; units: [UnitKey, number] }[] = [
+  { coins: 300, label: '3 BATTLE TANKS', units: ['mbt', 3] },
+  { coins: 1500, label: '2 WAR ROBOTS', units: ['robot', 2] },
+  { coins: 5000, label: 'MECHA TITAN', units: ['titan', 1] },
+  { coins: 15000, label: 'ORBITAL CANNON', units: ['orbital', 1] },
+];
 
 export interface SeasonStats {
   key: string; // YYYY-MM
@@ -55,7 +73,10 @@ export class Game {
   lastSummary: RoundSummary | null = null;
   likesRoom = 0;
   sharesRoom = 0;
-  lastLive = -999; // world time of last real (non-simulated) event
+  lastLive = -999;
+  voteOpen = false;
+  readonly votes = new Map<WeatherKey, number>();
+  private voters = new Set<string>(); // world time of last real (non-simulated) event
   private crateT = 120;
   private botT = 2;
   private saveT = 30;
@@ -69,6 +90,7 @@ export class Game {
   onWeather: (key: WeatherKey) => void = () => {};
   onRoundEnd: (s: RoundSummary) => void = () => {};
   onRoundStart: (n: number) => void = () => {};
+  onAlert: (title: string, sub: string, color: number, code?: string) => void = () => {};
   onGift: (p: Player, f: Faction, gift: string, coins: number, count: number, unit: UnitKey) => void = () => {};
 
   constructor(readonly world: World, private queue: EventQueue, readonly cfg: GameConfig = DEFAULT_CONFIG) {
@@ -139,6 +161,12 @@ export class Game {
         const code = parseCountry(e.text);
         if (code) return this.join(p, code);
         const cmd = e.text.trim().toLowerCase().split(/\s+/)[0];
+        const wv = WEATHER_VOTES[cmd];
+        if (wv && this.voteOpen && wv !== this.weather && !this.voters.has(p.uid)) {
+          this.voters.add(p.uid);
+          this.votes.set(wv, (this.votes.get(wv) ?? 0) + 1 + Math.min(4, rankOf(p.coins)));
+          return;
+        }
         const key = UNIT_CMDS.get(cmd);
         if (key) {
           p.pref[UNITS[key].tier] = key;
@@ -158,6 +186,7 @@ export class Game {
         const f = home();
         const sc = (this.season.countries[f.code] ??= { wins: 0, coins: 0 });
         sc.coins += total;
+        if (f.id !== 0) this.fillChest(f, total * f.boost);
         const tier = tierOf(e.coins);
         const pref = p.pref[tier];
         const key: UnitKey = pref && TIER_UNITS[tier].includes(pref) ? pref : this.autoPick(tier, f);
@@ -279,15 +308,33 @@ export class Game {
       w.update(dt);
       return;
     }
+    const before = this.round.timeLeft;
     this.round.timeLeft -= dt;
     w.mult = this.round.timeLeft <= 60 ? 2 : 1;
+    if (before > 60 && this.round.timeLeft <= 60) {
+      this.onAlert('FINAL MINUTE', 'ALL POINTS x2 · every gift counts double!', 0xff3b3b);
+      this.onFeed('FINAL MINUTE! All points x2', 'XX', 0xff3b3b);
+    }
+    this.underdog(dt);
+    this.bossRaid(before);
     w.update(dt);
     this.bots(dt);
     // weather schedule: forecast 15 s ahead (PLAN.md)
     this.weatherIn -= dt;
+    // viewers vote the next weather in the 30 s before the forecast (!rain, !storm, !fog...)
+    if (!this.nextWeather && !this.voteOpen && this.weatherIn <= 45) {
+      this.voteOpen = true;
+      this.votes.clear();
+      this.voters.clear();
+    }
     if (!this.nextWeather && this.weatherIn <= 15) {
+      this.voteOpen = false;
       const opts = WEATHERS.map((x) => x.key).filter((k) => k !== this.weather);
-      this.nextWeather = this.weather !== 'clear' && Math.random() < 0.35 ? 'clear' : pick(opts.filter((k) => k !== 'clear'));
+      const top = [...this.votes].sort((a, b) => b[1] - a[1])[0];
+      if (top) {
+        this.nextWeather = top[0];
+        this.onFeed(`Viewers voted: ${WEATHERS.find((x) => x.key === top[0])!.name} incoming!`, 'XX', 0x7fd8ff);
+      } else this.nextWeather = this.weather !== 'clear' && Math.random() < 0.35 ? 'clear' : pick(opts.filter((k) => k !== 'clear'));
     }
     if (this.weatherIn <= 0 && this.nextWeather) {
       this.weather = this.nextWeather;
@@ -315,6 +362,67 @@ export class Game {
       this.saveT = 30;
       void this.persist();
     }
+  }
+
+  /** Add coins to a country's shared war chest and pay out any goals reached. */
+  fillChest(f: Faction, coins: number) {
+    const w = this.world;
+    const prev = f.chest;
+    f.chest += coins;
+    while (f.chestStage < CHEST_GOALS.length && f.chest >= CHEST_GOALS[f.chestStage].coins) {
+      const g = CHEST_GOALS[f.chestStage++];
+      for (let i = 0; i < g.units[1]; i++) w.spawn(g.units[0], f.id, `${f.def.name} WAR CHEST`, `chest:${f.code}`, 0);
+      this.onAlert(`${f.def.name.toUpperCase()} WAR CHEST`, `Goal reached → ${g.label} deployed!`, f.color, f.code);
+      this.onFeed(`${f.def.name} war chest full → ${g.label}!`, f.code, f.color);
+    }
+    const g = CHEST_GOALS[f.chestStage];
+    if (g && prev < g.coins * 0.75 && f.chest >= g.coins * 0.75) this.onFeed(`${f.def.name} war chest ${Math.floor(f.chest)}/${g.coins} → ${g.label} almost unlocked!`, f.code, f.color);
+  }
+
+  /** Mid-round event: a neutral ROGUE TITAN drops in the centre; the country that deals the most damage wins a big bonus. */
+  boss: import('./world').Unit | null = null;
+  private bossRaid(before: number) {
+    const w = this.world;
+    if (!this.boss && before > 150 && this.round.timeLeft <= 150 && w.slotted.filter((f) => f.fort?.alive).length >= 2) {
+      w.bossDmg.clear();
+      const u = w.spawn('titan', 0, 'ROGUE TITAN', 'boss', 0, { x: 540, y: 1010 });
+      if (u) {
+        u.maxHp = u.hp = u.def.hp * 2.5;
+        this.boss = u;
+        this.onAlert('BOSS RAID: ROGUE TITAN', 'Hit it hardest → +1500 points for your country!', 0xff4fd8);
+        this.onFeed('BOSS RAID! A Rogue Titan has landed in the centre', 'XX', 0xff4fd8);
+      }
+    }
+    if (this.boss && !this.boss.alive) {
+      const top = [...w.bossDmg].sort((a, b) => b[1] - a[1])[0];
+      if (top && w.factions[top[0]]) {
+        const f = w.factions[top[0]];
+        f.score += 1500 * w.mult;
+        this.onAlert(`${f.def.name.toUpperCase()} SLAYS THE BOSS`, `Most damage on the Rogue Titan → +${1500 * w.mult} points`, f.color, f.code);
+        this.onFeed(`${f.def.name} wins the boss raid: +${1500 * w.mult} points`, f.code, f.color);
+      }
+      this.boss = null;
+    }
+  }
+
+  /** Comeback rule: when one country runs away with the round, the weakest standing fortress gets a shield and x1.5 points. */
+  private underdogT = 20;
+  underdogFid = -1;
+  private underdog(dt: number) {
+    const w = this.world;
+    for (const f of w.slotted) if (f.shieldT > 0 && (f.shieldT -= dt) <= 0) (f.shieldT = 0), (f.boost = 1), this.underdogFid === f.id && (this.underdogFid = -1);
+    if ((this.underdogT -= dt) > 0 || this.underdogFid >= 0 || this.round.timeLeft < 20) return;
+    this.underdogT = 15;
+    const alive = w.slotted.filter((f) => f.fort?.alive).sort((a, b) => b.score - a.score);
+    if (alive.length < 3) return;
+    const lead = alive[0], low = alive[alive.length - 1];
+    if (lead.score < 400 || low.score > lead.score * 0.4) return;
+    low.boost = 1.5;
+    low.shieldT = 45;
+    this.underdogFid = low.id;
+    this.underdogT = 60;
+    this.onAlert(`UNDERDOG: ${low.def.name.toUpperCase()}`, 'Fortress shield 45s · points and war chest x1.5 · gift now to turn it around!', low.color, low.code);
+    this.onFeed(`${low.def.name} is the UNDERDOG: shield up, points x1.5 for 45s`, low.code, low.color);
   }
 
   /** CPU reinforcements keep every fortress defended when chat is quiet (labelled CPU, never fake viewers). */
@@ -358,7 +466,16 @@ export class Game {
       .sort((a, b) => b.score - a.score)
       .map((f) => ({ code: f.code, name: f.def.name, score: Math.round(f.score), kills: f.kills, color: f.color }));
     if (ranking[0]) (this.season.countries[ranking[0].code] ??= { wins: 0, coins: 0 }).wins++;
-    const s: RoundSummary = { n: this.round.n, ranking, mvp: this.players.roundMvp(), topDonor: this.players.roundTopDonor() };
+    const season = Object.entries(this.season.countries)
+      .map(([code, v]) => ({ code, name: COUNTRY_BY_CODE.get(code)?.name ?? code, wins: v.wins, coins: v.coins }))
+      .sort((a, b) => b.wins - a.wins || b.coins - a.coins)
+      .slice(0, 5);
+    const legends = [...this.players.map.values()]
+      .filter((p) => p.coins > 0)
+      .sort((a, b) => b.coins - a.coins)
+      .slice(0, 5)
+      .map((p) => ({ name: p.name, coins: p.coins, rank: rankOf(p.coins), country: p.country }));
+    const s: RoundSummary = { n: this.round.n, ranking, mvp: this.players.roundMvp(), topDonor: this.players.roundTopDonor(), season, legends };
     this.lastSummary = s;
     this.round.state = 'victory';
     this.round.victoryT = this.cfg.victorySeconds;
@@ -373,6 +490,9 @@ export class Game {
     this.round.timeLeft = this.cfg.roundSeconds;
     this.players.resetRound();
     this.rivalry.clear();
+    this.underdogFid = -1;
+    this.underdogT = 20;
+    this.boss = null;
     const seasonKey = new Date().toISOString().slice(0, 7);
     if (seasonKey !== this.season.key) this.season = { key: seasonKey, countries: {} };
     this.onTerrain(this.terrain);
