@@ -1,0 +1,14 @@
+{
+  "name": "cmcw-bridge",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Fallback event source: TikTok-Live-Connector -> local WebSocket in TikFinity format (for Cyber Mecha Country Wars)",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "tiktok-live-connector": "^2.5.0",
+    "ws": "^8.18.0"
+  }
+}

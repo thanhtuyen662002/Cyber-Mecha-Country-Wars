@@ -7,4 +7,6 @@ Game tương tác cho TikTok LIVE (kết nối qua TikFinity): các quốc gia t
 
 - Thử nghiệm đồ họa (code vs ảnh AI): [art-lab/](art-lab/README.md), prompt tạo ảnh: [docs/ART_PROMPTS.md](docs/ART_PROMPTS.md)
 
-Trạng thái: đang lên kế hoạch và thử nghiệm đồ họa, chưa có code game.
+- **Game:** [game/](game/README.md) (chạy, đưa lên TikTok LIVE, cách chơi), bridge dự phòng: [bridge/](bridge/index.mjs)
+
+Trạng thái: bản chơi được đầu tiên (M0–M2 + phần lớn M5, M6), đồ họa vẽ bằng code từ art-lab.
