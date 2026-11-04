@@ -6,6 +6,7 @@
 | [TRACKS.md](TRACKS.md) | Phát triển song song nhánh 2D (Oscar) và 3D: luật chung, giao thức sự kiện, cách chấm chọn bản đẹp nhất |
 | [ART_PROMPTS.md](ART_PROMPTS.md) | Mô tả phong cách từng đơn vị, pháo đài, địa hình (lưu trữ, dùng làm gợi ý concept) |
 | [reference/gemini-prototype/](reference/gemini-prototype/) | Bản thử đầu tiên bằng Gemini: ảnh chụp tính năng, prompt nâng cấp, file HTML. Chỉ tham khảo ý tưởng |
+| [units/](units/README.md) | Poster thiết kế 24 đơn vị từ bản 2D, tham chiếu khi dựng model 3D |
 | [images/](images/) | Sơ đồ kiến trúc và lộ trình dùng trong PLAN.md |
 
 Tài liệu về code nằm cùng code trên từng nhánh:
