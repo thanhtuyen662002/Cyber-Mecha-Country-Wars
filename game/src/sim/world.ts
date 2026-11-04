@@ -19,8 +19,8 @@ const FORT_HP = 12000;
 
 /** 12 fortress slots around the edge of the portrait map, filled in this order. */
 export const SLOTS: { x: number; y: number }[] = [
-  { x: 210, y: 420 }, { x: 870, y: 1640 }, { x: 870, y: 420 }, { x: 210, y: 1640 },
-  { x: 540, y: 330 }, { x: 540, y: 1720 }, { x: 140, y: 1030 }, { x: 940, y: 1030 },
+  { x: 210, y: 470 }, { x: 870, y: 1640 }, { x: 870, y: 470 }, { x: 210, y: 1640 },
+  { x: 540, y: 400 }, { x: 540, y: 1720 }, { x: 140, y: 1030 }, { x: 940, y: 1030 },
   { x: 120, y: 730 }, { x: 960, y: 1330 }, { x: 960, y: 730 }, { x: 120, y: 1330 },
 ];
 const fortScale = (n: number) => (n <= 4 ? 0.78 : n <= 6 ? 0.66 : 0.54);
