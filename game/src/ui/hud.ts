@@ -3,7 +3,7 @@
 import { Container, Graphics, Sprite, Text, type TextStyleOptions } from 'pixi.js';
 import { H, TERRAINS, TERRAIN_WEATHERS, W, WEATHERS, WEATHER_CMD, type WeatherKey, fmt, lerp } from '../core/config';
 import { COUNTRY_BY_CODE } from '../core/countries';
-import { COUNTER, EVENT_UNITS, TIER_LABEL, TIER_MIN, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
+import { COUNTER, EVENT_UNITS, TIER_COLOR, TIER_LABEL, TIER_MIN, TIER_UNITS, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
 import type { FlagAtlas } from '../draw/flags';
 import type { FxTextures } from '../draw/fxTextures';
 import type { UnitArt } from '../draw/units';
@@ -136,6 +136,120 @@ class Portrait {
   }
 }
 
+/**
+ * Right-edge "arsenal" rail: one cell per gift tier (T1..T6) showing a unit nobody has summoned yet
+ * this round, with its price. It doubles as the tier ladder and as a standing call to gift.
+ */
+class Arsenal {
+  readonly root = new Container();
+  private cells: { tier: number; bg: Graphics; name: Text; price: Text; check: Text; portraits: Map<UnitKey, Portrait>; idx: number; shown: UnitKey | null; pulse: number; done: boolean }[] = [];
+  private cycle = 0;
+  private known = new Set<UnitKey>();
+  static readonly CW = 104;
+  static readonly CH = 100;
+  constructor(art: UnitArt, fx: FxTextures) {
+    const { CW, CH } = Arsenal;
+    const head = new Graphics();
+    panel(head, 0, 0, CW, 50, { color: GOLD, cut: 10, alpha: 0.8 });
+    const t1 = new Text({ text: 'NOT YET', style: tt(13, GOLD) });
+    const t2 = new Text({ text: 'SUMMONED', style: tt(13, GOLD) });
+    t1.anchor.set(0.5, 0);
+    t2.anchor.set(0.5, 0);
+    t1.position.set(CW / 2, 7);
+    t2.position.set(CW / 2, 26);
+    this.root.addChild(head, t1, t2);
+    for (let tier = 1; tier <= 6; tier++) {
+      const y = 56 + (tier - 1) * (CH + 6);
+      const col = TIER_COLOR[tier];
+      const cell = new Container();
+      cell.y = y;
+      const bg = new Graphics();
+      panel(bg, 0, 0, CW, CH, { color: col, cut: 10, alpha: 0.78, scan: false });
+      const badge = new Graphics().roundRect(4, 4, 34, 20, 4).fill({ color: col, alpha: 0.95 });
+      const bt = new Text({ text: `T${tier}`, style: tt(14, 0x02060c, { stroke: { width: 0 }, dropShadow: false }) });
+      bt.anchor.set(0.5);
+      bt.position.set(21, 14);
+      const price = new Text({ text: '', style: st(17, col) });
+      price.anchor.set(1, 0);
+      price.position.set(CW - 6, 3);
+      const name = new Text({ text: '', style: st(13, 0xffffff) });
+      name.anchor.set(0.5, 1);
+      name.position.set(CW / 2, CH - 3);
+      const check = new Text({ text: '✓ ALL OUT', style: st(15, 0x5dff8a) });
+      check.anchor.set(0.5);
+      check.position.set(CW / 2, CH / 2 + 10);
+      check.visible = false;
+      cell.addChild(bg);
+      const portraits = new Map<UnitKey, Portrait>();
+      for (const k of TIER_UNITS[tier]) {
+        const big = k === 'titan' || k === 'carrier' || k === 'dragon' || k === 'stormfort' || k === 'mobile';
+        const p = new Portrait(k === 'strike' ? 'bomber' : k, col, big ? 62 : 52, art, fx);
+        if (k === 'strike') p.root.children[1].tint = GOLD;
+        p.root.position.set(CW / 2, 52);
+        p.root.visible = false;
+        cell.addChild(p.root);
+        portraits.set(k, p);
+      }
+      cell.addChild(badge, bt, price, name, check);
+      this.root.addChild(cell);
+      this.cells.push({ tier, bg, name, price, check, portraits, idx: 0, shown: null, pulse: 0, done: false });
+    }
+  }
+  update(dt: number) {
+    for (const c of this.cells) {
+      if (c.shown) c.portraits.get(c.shown)!.update(dt);
+      if (c.pulse > 0) {
+        c.pulse = Math.max(0, c.pulse - dt);
+        c.bg.alpha = c.pulse ? 0.55 + 0.45 * Math.abs(Math.sin(c.pulse * 12)) : 1;
+      }
+    }
+  }
+  /** Called 4x per second with this round's summoned set. */
+  refresh(summoned: Set<UnitKey>, crowded: boolean) {
+    this.root.alpha = crowded ? 0.6 : 1;
+    this.cycle += 0.25;
+    const step = this.cycle >= 3;
+    if (step) this.cycle = 0;
+    for (const k of summoned) if (!this.known.has(k)) {
+      this.known.add(k);
+      const c = this.cells[UNITS[k].tier - 1];
+      if (c) c.pulse = 1.2;
+    }
+    if (!summoned.size && this.known.size) this.known.clear(); // new round
+    for (const c of this.cells) {
+      const left = TIER_UNITS[c.tier].filter((k) => !summoned.has(k));
+      c.done = !left.length;
+      if (step) c.idx++;
+      const key = c.done ? TIER_UNITS[c.tier][0] : left[c.idx % left.length];
+      if (key !== c.shown) {
+        if (c.shown) c.portraits.get(c.shown)!.root.visible = false;
+        c.shown = key;
+        c.portraits.get(key)!.root.visible = true;
+      }
+      const p = c.portraits.get(key)!;
+      p.root.alpha = c.done ? 0.25 : 1;
+      c.check.visible = c.done;
+      c.name.visible = !c.done;
+      const nm = (key === 'strike' ? 'AIR STRIKE' : UNITS[key].name).toUpperCase();
+      if (c.name.text !== nm) {
+        c.name.text = nm;
+        c.name.scale.set(Math.min(1, (Arsenal.CW - 8) / Math.max(1, c.name.width / c.name.scale.x)));
+      }
+      const pr = c.tier === 1 ? 'ROSE' : TIER_MIN[c.tier].toLocaleString('en-US');
+      if (c.price.text !== pr) {
+        c.price.text = pr;
+        c.price.scale.set(Math.min(1, 60 / Math.max(1, c.price.width / c.price.scale.x)));
+      }
+    }
+  }
+  /** Names of the most expensive kinds still missing, for the ticker. */
+  missing(summoned: Set<UnitKey>, n: number) {
+    const out: string[] = [];
+    for (let t = 6; t >= 2 && out.length < n; t--) for (const k of TIER_UNITS[t]) if (!summoned.has(k) && out.length < n) out.push(`${(k === 'strike' ? 'AIR STRIKE' : UNITS[k].name).toUpperCase()} (${TIER_MIN[t].toLocaleString('en-US')})`);
+    return out;
+  }
+}
+
 interface Card { root: Container; portrait: Portrait; life: number; slot: number }
 
 export class Hud {
@@ -208,6 +322,7 @@ export class Hud {
   private lastCount = -1;
   private countPulse = 0;
   private chestBars: Graphics[] = [];
+  private arsenal: Arsenal;
 
   constructor(private flags: FlagAtlas, private art: UnitArt, private fx: FxTextures) {
     // ---- top HUD: three rows of holo panels
@@ -303,6 +418,11 @@ export class Hud {
     this.ticker.anchor.set(0.5);
     this.ticker.position.set(W / 2, H - 48);
     this.layer.addChild(this.ticker);
+
+    // tier ladder / not-yet-summoned rail on the right edge (between the top and bottom fortresses)
+    this.arsenal = new Arsenal(art, fx);
+    this.arsenal.root.position.set(W - Arsenal.CW - 6, 590);
+    this.layer.addChild(this.arsenal.root);
 
     // cut-in
     // cut-in: holographic alert frame (built per call in cutIn)
@@ -856,6 +976,7 @@ export class Hud {
       if (c.life <= 0) this.dropCard(c);
     }
     if (this.guide.visible) for (const p of this.guidePortraits) p.update(dt);
+    this.arsenal.update(dt);
     for (const l of this.feed) {
       l.life -= dt;
       l.root.alpha = Math.max(0, Math.min(1, l.life));
@@ -965,6 +1086,7 @@ export class Hud {
       bar.clear().rect(x, 33, 150, 4).fill({ color: 0x000000, alpha: 0.5 }).rect(x, 33, 150 * k, 4).fill({ color: f.shieldT > 0 ? 0xffd34d : f.color, alpha: 0.95 });
     });
     for (let i = ranked.length; i < this.chestBars.length; i++) this.chestBars[i].clear();
+    this.arsenal.refresh(w.summoned, w.slotted.length > 6);
     // connection dot
     const col = status === 'live' ? 0x3dff7a : status === 'sim' ? 0x7f93b5 : status === 'connecting' ? 0xffd34d : 0xff4f4f;
     this.dot.clear().circle(0, 0, 6).fill(col);
@@ -1022,6 +1144,10 @@ export class Hud {
         `${TIER_LABEL(4)} → ROBOT / BOMBER / HOVERCRAFT / MOBILE FORTRESS`,
         `${TIER_LABEL(5)} → TITAN / DRONE CARRIER / STORM FORTRESS`,
         `${TIER_LABEL(6)} coins → STRATEGIC BOMBING / ORBITAL CANNON / MECHA DRAGON`,
+        ...(() => {
+          const m = this.arsenal.missing(w.summoned, 3);
+          return m.length ? [`NOT SUMMONED YET THIS ROUND: ${m.join(' · ')} → be the first!`] : [];
+        })(),
         `Pick your unit: !tank !aa !emp !mlrs !hover !robot !carrier !dragon …`,
         `${game.cfg.likesPerCrate.toLocaleString('en-US')} LIKES = SUPPLY CRATE (${fmt(game.likesRoom)}/${fmt(game.cfg.likesPerCrate)})`,
         `Hold the ENERGY CORE · REPAIR DEPOT · FACTORY for bonuses`,
