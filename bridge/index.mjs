@@ -6,6 +6,8 @@
 //   npm install
 //   npm start -- your_tiktok_username        (or set TIKTOK_USERNAME)
 //   optional: EULER_API_KEY=... (sign server key, raises rate limits)  PORT=21214
+//   EXTENDED_GIFTS=1 also fetches the room gift list, but Euler only signs that on a paid Business
+//   plan; off by default because gift events already carry the gift name and diamondCount.
 import { TikTokLiveConnection, WebcastEvent } from 'tiktok-live-connector';
 import { WebSocketServer } from 'ws';
 
@@ -27,6 +29,30 @@ wss.on('connection', () => console.log(`[bridge] game connected (${wss.clients.s
 
 const FORWARD = { chat: WebcastEvent.CHAT, gift: WebcastEvent.GIFT, like: WebcastEvent.LIKE, follow: WebcastEvent.FOLLOW, share: WebcastEvent.SHARE, member: WebcastEvent.MEMBER };
 
+// TikTok-Live-Connector v2 hands over raw protobuf shapes (user.displayId, content, gift.diamondCount...).
+// Add the flat TikFinity field names next to them so the game reads both sources the same way.
+const pic = (u) => u?.profilePictureUrl ?? u?.avatarThumb?.urlList?.[0] ?? u?.avatarMedium?.urlList?.[0];
+function flatten(d) {
+  if (!d || typeof d !== 'object') return d;
+  const u = d.user ?? {};
+  const g = d.gift ?? {};
+  const out = {
+    ...d,
+    uniqueId: d.uniqueId ?? u.uniqueId ?? u.displayId,
+    userId: [u.userId, u.id, u.idStr, d.userId].find((x) => x != null && String(x) !== '0'),
+    nickname: d.nickname ?? u.nickname,
+    profilePictureUrl: d.profilePictureUrl ?? pic(u),
+  };
+  if (d.content !== undefined && d.comment === undefined) out.comment = d.content;
+  if (d.gift || d.giftDetails) {
+    out.giftName = d.giftName ?? d.giftDetails?.giftName ?? g.name;
+    out.diamondCount = d.diamondCount ?? d.giftDetails?.diamondCount ?? g.diamondCount;
+    out.giftType = d.giftType ?? d.giftDetails?.giftType ?? g.type;
+  }
+  if (d.count !== undefined && d.likeCount === undefined) out.likeCount = d.count;
+  return out;
+}
+
 let backoff = 2;
 let conn = null;
 let timer = null;
@@ -41,8 +67,8 @@ function retry(why) {
 }
 async function connect() {
   conn?.removeAllListeners?.();
-  conn = new TikTokLiveConnection(username, { signApiKey: process.env.EULER_API_KEY || undefined, enableExtendedGiftInfo: true });
-  for (const [name, ev] of Object.entries(FORWARD)) conn.on(ev, (data) => send(name, data));
+  conn = new TikTokLiveConnection(username, { signApiKey: process.env.EULER_API_KEY || undefined, enableExtendedGiftInfo: process.env.EXTENDED_GIFTS === '1' });
+  for (const [name, ev] of Object.entries(FORWARD)) conn.on(ev, (data) => send(name, flatten(data)));
   conn.on(WebcastEvent.STREAM_END, () => console.log('[bridge] stream ended'));
   conn.on('disconnected', () => retry('disconnected'));
   try {
