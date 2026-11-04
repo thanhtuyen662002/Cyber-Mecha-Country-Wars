@@ -3,7 +3,7 @@
 import { Container, Graphics, Sprite, Text, type TextStyleOptions } from 'pixi.js';
 import { H, TERRAINS, W, WEATHERS, type WeatherKey, fmt, lerp } from '../core/config';
 import { COUNTRY_BY_CODE } from '../core/countries';
-import { COUNTER, TIER_LABEL, TIER_MIN, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
+import { COUNTER, EVENT_UNITS, TIER_LABEL, TIER_MIN, UNITS, UNIT_KEYS, type UnitKey } from '../core/units';
 import type { FlagAtlas } from '../draw/flags';
 import type { FxTextures } from '../draw/fxTextures';
 import type { UnitArt } from '../draw/units';
@@ -52,12 +52,42 @@ interface FeedLine { root: Container; bg: Graphics; flag: Sprite; text: Text; li
 const FOOT: Record<UnitKey, number> = { infantry: 34, sniper: 44, at: 36, drone: 34, flamer: 34, tank: 62, aa: 62, spider: 104, heli: 120, robot: 92, bomber: 100, titan: 180, strike: 100, jeep: 52, repair: 48, mbt: 90, mlrs: 70, emp: 62, hover: 110, mobile: 150, carrier: 220, stormfort: 150, orbital: 110, dragon: 200 };
 const CLASS_NAME = { inf: 'infantry', vehicle: 'vehicles', mech: 'mechs', air: 'aircraft', fort: 'fortresses' } as const;
 
+/** One-line role description shown on unit spec sheets. */
+const UNIT_BLURB: Record<UnitKey, string> = {
+  infantry: 'Cheap, fast to field and always on the move. Swarms of riflemen hold the line and shred other infantry.',
+  sniper: 'Long-barrel rail rifle. Picks off soldiers from far behind the front, but folds against armor.',
+  at: 'Shoulder-launched anti-armor rockets. The cheapest answer to tanks and mechs on the field.',
+  drone: 'A flying bomb. Dives straight into the nearest target and detonates for heavy damage.',
+  flamer: 'Pressurised plasma flamethrower. Melts infantry in a short cone, useless against aircraft.',
+  jeep: 'Fast wheeled scout with a roof-mounted machine gun. Great at cleaning up infantry and drones.',
+  tank: 'Light tracked tank with a fast-firing cannon. Solid armor and splash damage against soldiers.',
+  aa: 'Twin flak cannons with a radar dish. Tears aircraft out of the sky at very long range.',
+  spider: 'Six-legged walker with a pulsed laser. Strides over any terrain and hits every class evenly.',
+  repair: 'Support drone that beams repairs into damaged allies. Keeps your big units alive longer.',
+  heli: 'Attack helicopter firing rocket salvos. Flies over every obstacle and hunts vehicles.',
+  mbt: 'Heavy main battle tank. Thick armor and a big-bore cannon that wrecks infantry and forts.',
+  mlrs: 'Rocket artillery. Fires six-rocket salvos from extreme range onto the enemy rear lines.',
+  emp: 'Electromagnetic pulse truck. Its blast fries mechs and aircraft and stuns everything nearby.',
+  robot: 'Humanoid war robot with arm cannons and shoulder rockets. A walking frontline anchor.',
+  bomber: 'Carpet-bombing run across the battlefield. Devastating on the ground, gone in seconds.',
+  hover: 'Hovercraft gunship. Glides over water and sand at full speed and fires rocket volleys.',
+  mobile: 'A rolling fortress with three turrets: two cannons, then a main rail gun. Huge armor.',
+  titan: 'Colossal bipedal mech. Twin gatling arrays and missiles fire non-stop in every direction.',
+  carrier: 'Flying aircraft carrier. Launches attack drones and shreds enemy aircraft with point defence.',
+  stormfort: 'Mobile tesla fortress. Calls lightning onto its target that chains to more enemies.',
+  strike: 'Strategic bombing run. A bomber wing flattens the whole enemy side of the map.',
+  orbital: 'Satellite laser from orbit. A beam sweeps across the battlefield, erasing all in its path.',
+  dragon: 'The ultimate unit. A serpentine mecha dragon that flies anywhere and breathes plasma fire.',
+};
+
 /** A unit rig animated in place, for cards and the unit guide. */
 class Portrait {
   readonly root = new Container();
   private vis: UnitVisual;
   private dist = 0;
   private t = Math.random() * 10;
+  readonly holder = new Container();
+  private curl = false;
   constructor(key: UnitKey, color: number, size: number, art: UnitArt, fx: FxTextures) {
     const glow = new Sprite(fx.glow);
     glow.anchor.set(0.5);
@@ -66,14 +96,25 @@ class Portrait {
     glow.alpha = 0.35;
     glow.blendMode = 'add';
     this.vis = buildVisual(key, color, art, fx);
-    const holder = new Container();
-    holder.scale.set(size / FOOT[key]);
-    holder.addChild(this.vis.root);
-    this.root.addChild(glow, holder);
+    this.holder.scale.set(size / FOOT[key]);
+    this.holder.addChild(this.vis.root);
+    this.root.addChild(glow, this.holder);
+    this.curl = key === 'dragon';
+    // the storm fortress' cloud cover reads as a grey smudge off the battlefield: thin it out
+    if (key === 'stormfort') for (const c of this.vis.root.children) if (c instanceof Sprite && c.texture === fx.fog) c.alpha = 0.08;
   }
   update(dt: number) {
     this.t += dt;
     this.dist += dt * 30;
+    if (this.curl) {
+      // fly the dragon in a slow circle so its body coils behind the head
+      const R = 62, w = this.t * 0.9;
+      this.vis.root.position.set(Math.cos(w) * R, Math.sin(w) * R);
+      this.holder.pivot.set(Math.cos(w - 0.9) * R * 0.75, Math.sin(w - 0.9) * R * 0.75);
+      const h = w + Math.PI / 2;
+      this.vis.update({ angle: h, aim: h, moving: 1, dist: this.dist, t: this.t, flash: 0 });
+      return;
+    }
     this.vis.root.position.set(0, 0);
     const a = -0.5 + Math.sin(this.t * 0.6) * 0.12;
     this.vis.update({ angle: a, aim: a + Math.sin(this.t * 1.3) * 0.35, moving: 0.8, dist: this.dist, t: this.t, flash: 0 });
@@ -490,6 +531,102 @@ export class Hud {
       vs.position.set(cx, cy + 232);
       this.guide.addChild(name, tier, vs);
     });
+  }
+
+  /** A 1080x1350 spec sheet for one unit (used to export reference images). */
+  poster(key: UnitKey): { root: Container; destroy: () => void } {
+    const d = UNITS[key];
+    const PW = 1080, PH = 1350;
+    const col = [0x9fb4d8, 0x6dff9a, 0x38e1ff, 0x5a8cff, 0xc86dff, 0xff9a3d, GOLD][d.tier];
+    const root = new Container();
+    const g = new Graphics();
+    g.rect(0, 0, PW, PH).fill(0x03060d);
+    for (let y = 0; y < PH; y += 6) g.rect(0, y, PW, 3).fill({ color: col, alpha: 0.012 + 0.03 * (1 - y / PH) });
+    for (let x = 0; x <= PW; x += 60) g.rect(x, 0, 1, PH).fill({ color: col, alpha: 0.06 });
+    for (let y = 0; y <= PH; y += 60) g.rect(0, y, PW, 1).fill({ color: col, alpha: 0.06 });
+    panel(g, 24, 24, PW - 48, PH - 48, { color: col, alpha: 0.35, cut: 40, edge: 3 });
+    // header
+    panel(g, 60, 64, 220, 46, { color: col, alpha: 0.9, cut: 12 });
+    root.addChild(g);
+    const add = <T extends Container>(o: T, x: number, y: number, ax = 0, ay = 0) => {
+      if ('anchor' in o) (o as unknown as Text).anchor.set(ax, ay);
+      o.position.set(x, y);
+      root.addChild(o);
+      return o;
+    };
+    add(new Text({ text: `TIER ${d.tier}`, style: tt(24, col) }), 170, 87, 0.5, 0.5);
+    const event = EVENT_UNITS.includes(key);
+    const clsName = event ? 'GLOBAL EVENT' : { inf: 'INFANTRY', vehicle: 'VEHICLE', mech: 'MECH', air: 'AIRCRAFT' }[d.cls];
+    add(new Text({ text: `UNIT FILE // ${clsName}`, style: st(26, 0x9fdcff, { letterSpacing: 4 }) }), PW - 60, 87, 1, 0.5);
+    const name = add(new Text({ text: d.name.toUpperCase(), style: tt(78, 0xffffff) }), PW / 2, 128, 0.5, 0);
+    name.scale.set(Math.min(1, (PW - 120) / name.width));
+    // portrait stage
+    const ring = new Graphics();
+    const cx = PW / 2, cy = 540;
+    for (let r = 120; r <= 330; r += 70) ring.circle(cx, cy, r).stroke({ width: 2, color: col, alpha: 0.18 });
+    ring.circle(cx, cy, 300).stroke({ width: 4, color: col, alpha: 0.5 });
+    for (let k = 0; k < 48; k++) {
+      const a = (k / 48) * Math.PI * 2, r0 = k % 4 === 0 ? 300 : 308;
+      ring.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0).lineTo(cx + Math.cos(a) * 320, cy + Math.sin(a) * 320).stroke({ width: k % 4 === 0 ? 4 : 2, color: col, alpha: 0.7 });
+    }
+    ring.moveTo(cx - 360, cy).lineTo(cx - 250, cy).moveTo(cx + 250, cy).lineTo(cx + 360, cy).stroke({ width: 2, color: col, alpha: 0.5 });
+    ring.moveTo(cx, cy - 325).lineTo(cx, cy - 250).moveTo(cx, cy + 250).lineTo(cx, cy + 325).stroke({ width: 2, color: col, alpha: 0.5 });
+    root.addChild(ring);
+    const big = key === 'titan' || key === 'carrier' || key === 'dragon' || key === 'mobile' || key === 'stormfort';
+    const p = new Portrait(key === 'strike' ? 'bomber' : key, col, big ? 470 : 400, this.art, this.fx);
+    for (let i = 0; i < 150; i++) p.update(1 / 30);
+    const hb = p.holder.getBounds(), rb = p.root.getBounds();
+    p.root.position.set(cx - (hb.x + hb.width / 2 - rb.x - rb.width / 2), cy - (hb.y + hb.height / 2 - rb.y - rb.height / 2));
+    root.addChild(p.root);
+    // stats
+    let y = 878;
+    const bars: [string, number, number, string][] = event
+      ? []
+      : [
+          ['ARMOR', d.hp, 9000, d.hp.toLocaleString('en-US') + ' HP'],
+          ['FIREPOWER', d.weapon === 'repair' ? d.dmg / d.fireInterval : d.dmg / d.fireInterval, 400, d.weapon === 'repair' ? `${Math.round(d.dmg / d.fireInterval)} HEAL/S` : `${Math.round(d.dmg / d.fireInterval)} DPS`],
+          ['RANGE', d.range, 600, `${d.range} M`],
+          ['SPEED', d.speed, 210, `${d.speed} KM/H`],
+        ];
+    const sb = new Graphics();
+    root.addChild(sb);
+    if (event) {
+      panel(sb, 60, y - 10, PW - 120, 120, { color: col, alpha: 0.6, cut: 16 });
+      add(new Text({ text: 'INSTANT MAP-WIDE STRIKE · NO UNIT SPAWNS', style: tt(30, col) }), PW / 2, y + 50, 0.5, 0.5);
+      y += 140;
+    } else {
+      for (const [label, v, max, txt] of bars) {
+        const f = Math.max(0.04, Math.min(1, Math.log(1 + v) / Math.log(1 + max)));
+        add(new Text({ text: label, style: tt(22, 0x9fdcff) }), 60, y + 13, 0, 0.5);
+        const bx = 300, segs = 26;
+        for (let k = 0; k < segs; k++) sb.poly([bx + k * 20 + 6, y, bx + k * 20 + 22, y, bx + k * 20 + 16, y + 26, bx + k * 20, y + 26]).fill({ color: k / segs < f ? col : 0x1a2a40, alpha: k / segs < f ? 0.95 : 0.8 });
+        add(new Text({ text: txt, style: st(28, 0xffffff) }), PW - 60, y + 13, 1, 0.5);
+        y += 42;
+      }
+      y += 4;
+    }
+    // info panel
+    const how = d.tier === 0 ? { infantry: 'Chat anything', sniper: 'Follow the host', at: 'Share the LIVE' }[key as 'infantry'] : `Gift ${TIER_MIN[d.tier].toLocaleString('en-US')}+ coins`;
+    const strong = (Object.entries(COUNTER[d.weapon]) as [keyof typeof CLASS_NAME, number][]).filter(([, v]) => v >= 1.4).map(([c]) => CLASS_NAME[c]);
+    const strongText = d.weapon === 'repair' ? 'Heals friendly units' : strong.length ? strong.join(', ') : 'All-rounder';
+    const weakKeys = event ? [] : UNIT_KEYS.filter((k) => k !== key && !EVENT_UNITS.includes(k) && COUNTER[UNITS[k].weapon][d.cls] >= 2).map((k) => UNITS[k].name);
+    const ib = new Graphics();
+    root.addChild(ib);
+    panel(ib, 60, y, PW - 120, PH - 60 - y, { color: col, alpha: 0.75, cut: 22 });
+    const rows: [string, string, number][] = [
+      ['CALL', `${how}${d.tier > 0 || key === 'infantry' ? '  ·  type ' + d.cmds.join(' / ') : ''}`, GOLD],
+      ['STRONG VS', strongText, 0x6dff9a],
+      ['WEAK VS', event ? 'Cannot be stopped' : weakKeys.length ? weakKeys.slice(0, 4).join(', ') + (weakKeys.length > 4 ? '…' : '') : 'Nothing in particular', 0xff6d6d],
+    ];
+    let ry = y + 22;
+    for (const [lab, val, c] of rows) {
+      add(new Text({ text: lab, style: tt(20, c) }), 90, ry + 4);
+      const t = add(new Text({ text: val, style: st(28, 0xffffff) }), 290, ry);
+      t.scale.set(Math.min(1, (PW - 380) / t.width));
+      ry += 40;
+    }
+    add(new Text({ text: UNIT_BLURB[key], style: st(26, 0xb8cbe6, { wordWrap: true, wordWrapWidth: PW - 180, lineHeight: 32 }) }), 90, ry + 8);
+    return { root, destroy: () => (p.destroy(), root.destroy({ children: true })) };
   }
 
   // ------------------------------------------------------------ victory
