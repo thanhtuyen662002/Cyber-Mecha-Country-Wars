@@ -16,8 +16,9 @@ Hai bản dùng **chung luật chơi, chung nguồn sự kiện TikTok và chung
 1. [PLAN.md](PLAN.md): kế hoạch tổng, luật chơi, 24 đơn vị và 7 bậc quà, địa hình, thời tiết, camera, ổn định 24/7, lộ trình. Bảng "Đã chốt" ở cuối là các quyết định của Oscar.
 2. File này: những gì cả 2 nhánh phải giữ giống nhau.
 3. [README của bản 2D v1](https://github.com/thanhtuyen662002/Cyber-Mecha-Country-Wars/blob/track/2d/game/README.md): bản đang chạy làm gì, cách chơi chi tiết, tham số URL. Đây là "bản mẫu" để đối chiếu tính năng.
-4. [ART_PROMPTS.md](ART_PROMPTS.md): mô tả phong cách, góc nhìn, màu từng đơn vị (viết cho ảnh AI, nhánh 2D không dùng nữa, nhánh 3D có thể dùng làm gợi ý concept model).
-5. [reference/gemini-prototype/](reference/gemini-prototype/): bản thử đầu tiên làm bằng Gemini. Chỉ để tham khảo ý tưởng, không dùng lại code (nhiều lỗi hiệu năng, xem PLAN.md mục "Hiện trạng").
+4. [units/](units/README.md): poster thiết kế 24 đơn vị của bản 2D (hình dáng, màu, vai trò), dùng làm tham chiếu khi dựng model.
+5. [ART_PROMPTS.md](ART_PROMPTS.md): mô tả phong cách, góc nhìn, màu từng đơn vị (viết cho ảnh AI, nhánh 2D không dùng nữa, nhánh 3D có thể dùng làm gợi ý concept model).
+6. [reference/gemini-prototype/](reference/gemini-prototype/): bản thử đầu tiên làm bằng Gemini. Chỉ để tham khảo ý tưởng, không dùng lại code (nhiều lỗi hiệu năng, xem PLAN.md mục "Hiện trạng").
 
 ## Cách dùng nhánh git
 
